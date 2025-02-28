@@ -1,0 +1,13 @@
+Source: mrvlteralynx
+Section: unknown
+Priority: optional
+Maintainer: Marvell <keshavg@marvell.com>
+Build-Depends: debhelper (>=9)
+Standards-Version: 3.9.6
+Homepage: <insert the upstream URL, if relevant>
+
+Package: mrvlteralynx
+Architecture: any
+Homepage: <insert the upstream URL, if relevant>
+Description:
+	kernel modules for teralynx switch driver

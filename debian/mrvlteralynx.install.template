@@ -1,0 +1,2 @@
+drivers/ipd/ipd.ko /lib/modules/KVERSION/extra
+etc/modules-load.d/marvell-teralynx.conf /etc/modules-load.d/
