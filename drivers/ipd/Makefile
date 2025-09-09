@@ -25,7 +25,7 @@
 # disclaimer.
 # *******************************************************************************
 TARGET = ipd
-$(TARGET)-objs = inno_ldh_v0.o inno_ldh_v2.o inno_debug.o inno_enet.o ipd_main.o inno_cmipd_v0.o inno_cmipd_v2.o
+$(TARGET)-objs = inno_ldh_v0.o inno_ldh_v2.o inno_ldh_v3.o inno_ldh_v4.o inno_debug.o inno_enet.o ipd_main.o inno_cmipd_v0.o inno_cmipd_v2.o inno_cmipd_v3.o inno_cmipd_v4.o
 
 obj-m += $(TARGET).o
 ccflags-y += $(IPD_CFLAGS)

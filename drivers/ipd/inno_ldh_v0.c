@@ -38,7 +38,6 @@ disclaimer.
 #include "inno_ldh.h"
 #include "inno_enet.h"
 #include "inno_cmipd_v0.h"
-#include "inno_cmipd_v2.h"
 
 typedef struct ldh_v0_s {
     union {
@@ -123,70 +122,43 @@ inno_unpack_debug_header(uint8_t   *buf,
                          uint16_t  *lvni,
                          uint16_t  *intf)
 {
-    uint8_t  e1;
-    uint32_t vni = 0;
-    uint32_t l3iif = 0;
-    uint32_t sysdest_type = 0;
-    uint32_t sysdest_value = 0;
-    uint8_t fwd_hdr_offset = 0;
-    uint8_t fwd_layer_type = 0;
+    cfx_v0_t cmf = {};
+    ipd_fields_v0_t ipdfld;
+    uint32_t nh_hw_index = 0;
+    int rc;
+    rc = cfx_v0_init(&cmf);
+    if (rc != 0)
+        ipd_err("cm init failed rc = %d",rc);
+    rc = cfx_v0_unpack(&cmf, buf);
+    if (rc != 0)
+        ipd_err("cm unpack failed rc = %d",rc);
+    inno_unpack_cmhdr_v0(buf, &ipdfld);
+    *lvni = (uint16_t)ipdfld.vni;
+    *intf = (uint16_t)ipdfld.l3iif;
 
-    e1 = (buf[7]>>3) & 0x7;
-    switch(e1){
-        case 0:
-            vni = (uint32_t) buf[9] | (uint32_t) (buf[8]<<8);
-            vni = (vni>>3) & 0x1fff;
-            break;
-        case 1:
-            vni = (uint32_t) buf[11] | (uint32_t) (buf[10]<<8);
-            vni = (vni>>3) & 0x1fff;
-            break;
-        case 2:
-            vni = (uint32_t) buf[11] | (uint32_t) (buf[10]<<8);
-            vni = (vni>>3) & 0x1fff;
-            l3iif = (uint32_t) ((buf[11] & 0x7) << 11) |
-                    (uint32_t) ((buf[12] & 0xff) << 3) |
-                    (uint32_t) ((buf[13] >> 5) & 0x7);
-            break;
-        case 3:
-            vni = (uint32_t) buf[11] | (uint32_t) (buf[10]<<8);
-            vni = (vni>>3) & 0x1fff;
-            l3iif = (uint32_t) ((buf[13] & 0x7) << 11) |
-                    (uint32_t) ((buf[14] & 0xff) << 3) |
-                    (uint32_t) ((buf[15] >> 5) & 0x7);
-            break;
-        case 4:
-            vni = (uint32_t) buf[12] | (uint32_t) (buf[11]<<8) |
-                  (uint32_t) (buf[10]<<16);
-            vni = (vni>>7) & 0x1fff;
-            break;
-        case 5:
-            vni = (uint32_t) buf[12] | (uint32_t) (buf[11]<<8) |
-                  (uint32_t) (buf[10]<<16);
-            vni = (vni>>7) & 0x1fff;
-            l3iif = ((uint32_t) ((buf[13] & 0x1) << 13) |
-                     (uint32_t) ((buf[14] & 0xff) << 5) |
-                     (uint32_t) ((buf[15] >> 3) & 0x1f)) & 0x3fff;
-            break;
-        default:
-            ipd_debug("ipd Unsupported EEP1 - %d\n", e1);
+    switch(ipdfld.e1){
+    case 1:
+    /* No break on purpose - fallthrough */
+    case 2:
+    {
+        nh_hw_index = (uint16_t) buf[9] | (uint16_t) (buf[8] << 8);
     }
-    *lvni = (uint16_t)vni;
-    *intf = (uint16_t)l3iif;
-    sysdest_type  = (uint32_t) ((buf[4] >> 1) & 0x1);
-    sysdest_value = (uint32_t) (((buf[4] & 0x1) << 12) | ((buf[5] & 0xff) << 4) | ((buf[6] >> 4) & 0xf));
-    if (sysdest_type == 1){
+    break;
+    default:
+        ipd_debug("ipd Unsupported EEP1 - %d\n", ipdfld.e1);
+}
+
+    if (cmf.ipd_f13.value[0] == 1){
     /* Destination is an MDG. Zero out the egress port in this case */
         ih->dsp = 0;
     } else {
     /* Destination is a Sysport */
-        ih->dsp = sysdest_value;
+        ih->dsp = (uint32_t)cmf.ipd_f14.value[0];
     }
-    fwd_hdr_offset = (uint8_t)(((buf[1] >> 4) & 0xf) | ((buf[0] & 0x3) << 4));
-    ih->fwd_hdr_offset = (uint8_t)(2*fwd_hdr_offset);
+    ih->fwd_hdr_offset = (uint8_t)(2*cmf.ipd_f4.value[0]);
+    ih->nhoif = nh_hw_index;
 
-    fwd_layer_type = (uint8_t)((buf[1] >> 1) & 0x7);
-    switch (fwd_layer_type) {
+    switch (cmf.ipd_f5.value[0]) {
         case 0:
             ih->fwd_layer_type = INNO_FWD_LAYER_TYPE_L2;
             break;
@@ -206,10 +178,11 @@ inno_unpack_debug_header(uint8_t   *buf,
             ih->fwd_layer_type = INNO_FWD_LAYER_TYPE_NON_IP_NON_MPLS;
             break;
         default:
-            ih->fwd_layer_type = fwd_layer_type;
+            ih->fwd_layer_type = cmf.ipd_f5.value[0];
     }
-    ipd_debug("E1 - %d VNI - 0x%x INTF - 0x%x fwd_layer_type - %d fwd_hdr_offset - %d sysdest_type - 0x%x sysdest_value - 0x%x\n",
-               e1, vni, l3iif, ih->fwd_layer_type, ih->fwd_hdr_offset, sysdest_type, sysdest_value);
+    ipd_debug("E1 -%d VNI - 0x%x INTF - 0x%x fwd_layer_type - %d fwd_hdr_offset - %d sysdest_type - 0x%x sysdest_value - 0x%x nhoif - %d\n",
+               ipdfld.e1, ipdfld.vni, ipdfld.l3iif, ih->fwd_layer_type, ih->fwd_hdr_offset, cmf.ipd_f13.value[0], cmf.ipd_f14.value[0],
+               ih->nhoif);
 }
 
 void
@@ -309,7 +282,7 @@ inno_unpack_ext_hdrs_v0(inno_device_t *idev,
                         uint32_t *sp)
 {
 	inno_ldh_v0_t *ldh = (inno_ldh_v0_t  *) ldh_hdr;
-	if ((ldh->_u.vf0._rsvd_fixed_2_f == 1)) {
+	if (ldh->_u.vf0._rsvd_fixed_2_f == 1) {
 		uint32_t *pkt_ptr, gre_proto_type, eh_type, offset;
 		struct ethhdr         *ehdr;
 

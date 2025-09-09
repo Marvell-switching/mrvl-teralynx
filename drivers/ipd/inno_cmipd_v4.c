@@ -14,13 +14,13 @@
 
 
 #include <linux/pci.h>
-#include "inno_cmipd_v2.h"
-int cfx_v2_init(cfx_v2_t* cmp)
+#include "inno_cmipd_v4.h"
+int cfx_v4_init(cfx_v4_t* cmp)
 {
     if (!cmp) {
         return -1;
     }
-    memset(cmp, 0, sizeof(cfx_v2_t));
+    memset(cmp, 0, sizeof(cfx_v4_t));
     /* Initialize ipd_f0 */
     cmp->ipd_f0.num_val = 1;
     cmp->ipd_f0.bit_width = 1;
@@ -92,7 +92,7 @@ int cfx_v2_init(cfx_v2_t* cmp)
     return 0;
 }
 
-int cfx_v2_pack(cfx_v2_t* cmp, uint8_t * bm)
+int cfx_v4_pack(cfx_v4_t* cmp, uint8_t * bm)
 {
     uint32_t w_id=0, b_id=0;
     if (!cmp) {
@@ -101,27 +101,27 @@ int cfx_v2_pack(cfx_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    PACK_V2_FIELD(cmp->ipd_f0, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f1, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f2, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f3, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f4, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f5, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f6, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f7, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f8, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f9, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f10, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f11, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f12, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f13, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f14, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f15, w_id, b_id, bm, 1);
-    PACK_V2_FIELD(cmp->ipd_f16, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f0, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f1, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f2, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f3, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f4, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f5, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f6, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f7, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f8, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f9, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f10, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f11, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f12, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f13, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f14, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f15, w_id, b_id, bm, 1);
+    PACK_V4_FIELD(cmp->ipd_f16, w_id, b_id, bm, 1);
     return 0;
 }
 
-int cfx_v2_unpack(cfx_v2_t* cmp, uint8_t * bm)
+int cfx_v4_unpack(cfx_v4_t* cmp, uint8_t * bm)
 {
     uint32_t w_id=0, b_id=0;
     if (!cmp) {
@@ -130,27 +130,27 @@ int cfx_v2_unpack(cfx_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    UNPACK_V2_FIELD(cmp->ipd_f0, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f1, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f2, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f3, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f4, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f5, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f6, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f7, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f8, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f9, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f10, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f11, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f12, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f13, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f14, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f15, w_id, b_id, bm, 1);
-    UNPACK_V2_FIELD(cmp->ipd_f16, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f0, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f1, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f2, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f3, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f4, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f5, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f6, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f7, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f8, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f9, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f10, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f11, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f12, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f13, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f14, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f15, w_id, b_id, bm, 1);
+    UNPACK_V4_FIELD(cmp->ipd_f16, w_id, b_id, bm, 1);
     return 0;
 }
 
-int cfx_v2_clear_fields(cfx_v2_t* cmp)
+int cfx_v4_clear_fields(cfx_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -210,7 +210,7 @@ int cfx_v2_clear_fields(cfx_v2_t* cmp)
     return 0;
 }
 
-int cfx_v2_set_fields(cfx_v2_fields_t* cmf, cfx_v2_t* cmp)
+int cfx_v4_set_fields(cfx_v4_fields_t* cmf, cfx_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -270,7 +270,7 @@ int cfx_v2_set_fields(cfx_v2_fields_t* cmf, cfx_v2_t* cmp)
     return 0;
 }
 
-int cfx_v2_get_fields(cfx_v2_fields_t* cmf, cfx_v2_t* cmp)
+int cfx_v4_get_fields(cfx_v4_fields_t* cmf, cfx_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -330,7 +330,7 @@ int cfx_v2_get_fields(cfx_v2_fields_t* cmf, cfx_v2_t* cmp)
     return 0;
 }
 
-cfx_v2_t g_cfx_v2 = {
+cfx_v4_t g_cfx_v4 = {
     {{0}, 1, 1, 0},
     {{0}, 1, 3, 1},
     {{0}, 1, 7, 4},
@@ -350,19 +350,19 @@ cfx_v2_t g_cfx_v2 = {
     {{0}, 1, 6, 66},
 };
 
-cfx_v2_func_t g_func_cfx_v2 = {
-    cfx_v2_pack,
-    cfx_v2_unpack,
-    cfx_v2_set_fields,
-    cfx_v2_get_fields,
+cfx_v4_func_t g_func_cfx_v4 = {
+    cfx_v4_pack,
+    cfx_v4_unpack,
+    cfx_v4_set_fields,
+    cfx_v4_get_fields,
 };
 
-int pf2_1_v2_init(pf2_1_v2_t* cmp)
+int pf2_1_v4_init(pf2_1_v4_t* cmp)
 {
     if (!cmp) {
         return -1;
     }
-    memset(cmp, 0, sizeof(pf2_1_v2_t));
+    memset(cmp, 0, sizeof(pf2_1_v4_t));
     /* Initialize ipd2_f0 */
     cmp->ipd2_f0.num_val = 1;
     cmp->ipd2_f0.bit_width = 9;
@@ -386,7 +386,7 @@ int pf2_1_v2_init(pf2_1_v2_t* cmp)
     return 0;
 }
 
-int pf2_1_v2_pack(pf2_1_v2_t* cmp, uint8_t * bm)
+int pf2_1_v4_pack(pf2_1_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=0, w_id=39, b_id=0;
     if (!cmp) {
@@ -395,15 +395,15 @@ int pf2_1_v2_pack(pf2_1_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    PACK_V2_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf2_1_v2_unpack(pf2_1_v2_t* cmp, uint8_t * bm)
+int pf2_1_v4_unpack(pf2_1_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=0, w_id=39, b_id=0;
     if (!cmp) {
@@ -412,15 +412,15 @@ int pf2_1_v2_unpack(pf2_1_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    UNPACK_V2_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf2_1_v2_clear_fields(pf2_1_v2_t* cmp)
+int pf2_1_v4_clear_fields(pf2_1_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -444,7 +444,7 @@ int pf2_1_v2_clear_fields(pf2_1_v2_t* cmp)
     return 0;
 }
 
-int pf2_1_v2_set_fields(pf2_1_v2_fields_t* cmf, pf2_1_v2_t* cmp)
+int pf2_1_v4_set_fields(pf2_1_v4_fields_t* cmf, pf2_1_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -468,7 +468,7 @@ int pf2_1_v2_set_fields(pf2_1_v2_fields_t* cmf, pf2_1_v2_t* cmp)
     return 0;
 }
 
-int pf2_1_v2_get_fields(pf2_1_v2_fields_t* cmf, pf2_1_v2_t* cmp)
+int pf2_1_v4_get_fields(pf2_1_v4_fields_t* cmf, pf2_1_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -492,7 +492,7 @@ int pf2_1_v2_get_fields(pf2_1_v2_fields_t* cmf, pf2_1_v2_t* cmp)
     return 0;
 }
 
-pf2_1_v2_t g_pf2_1_v2 = {
+pf2_1_v4_t g_pf2_1_v4 = {
     {{0}, 1, 9, 0},
     {{0}, 1, 16, 9},
     {{0}, 4, 128, 25},
@@ -500,19 +500,19 @@ pf2_1_v2_t g_pf2_1_v2 = {
     {{0}, 1, 2, 161},
 };
 
-pf2_1_v2_func_t g_func_pf2_1_v2 = {
-    pf2_1_v2_pack,
-    pf2_1_v2_unpack,
-    pf2_1_v2_set_fields,
-    pf2_1_v2_get_fields,
+pf2_1_v4_func_t g_func_pf2_1_v4 = {
+    pf2_1_v4_pack,
+    pf2_1_v4_unpack,
+    pf2_1_v4_set_fields,
+    pf2_1_v4_get_fields,
 };
 
-int pf2_2_v2_init(pf2_2_v2_t* cmp)
+int pf2_2_v4_init(pf2_2_v4_t* cmp)
 {
     if (!cmp) {
         return -1;
     }
-    memset(cmp, 0, sizeof(pf2_2_v2_t));
+    memset(cmp, 0, sizeof(pf2_2_v4_t));
     /* Initialize ipd2_f0 */
     cmp->ipd2_f0.num_val = 1;
     cmp->ipd2_f0.bit_width = 9;
@@ -544,7 +544,7 @@ int pf2_2_v2_init(pf2_2_v2_t* cmp)
     return 0;
 }
 
-int pf2_2_v2_pack(pf2_2_v2_t* cmp, uint8_t * bm)
+int pf2_2_v4_pack(pf2_2_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=0, w_id=39, b_id=0;
     if (!cmp) {
@@ -553,17 +553,17 @@ int pf2_2_v2_pack(pf2_2_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    PACK_V2_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f2, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f3, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f2, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f3, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf2_2_v2_unpack(pf2_2_v2_t* cmp, uint8_t * bm)
+int pf2_2_v4_unpack(pf2_2_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=0, w_id=39, b_id=0;
     if (!cmp) {
@@ -572,17 +572,17 @@ int pf2_2_v2_unpack(pf2_2_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    UNPACK_V2_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f2, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f3, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f2, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f3, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf2_2_v2_clear_fields(pf2_2_v2_t* cmp)
+int pf2_2_v4_clear_fields(pf2_2_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -612,7 +612,7 @@ int pf2_2_v2_clear_fields(pf2_2_v2_t* cmp)
     return 0;
 }
 
-int pf2_2_v2_set_fields(pf2_2_v2_fields_t* cmf, pf2_2_v2_t* cmp)
+int pf2_2_v4_set_fields(pf2_2_v4_fields_t* cmf, pf2_2_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -642,7 +642,7 @@ int pf2_2_v2_set_fields(pf2_2_v2_fields_t* cmf, pf2_2_v2_t* cmp)
     return 0;
 }
 
-int pf2_2_v2_get_fields(pf2_2_v2_fields_t* cmf, pf2_2_v2_t* cmp)
+int pf2_2_v4_get_fields(pf2_2_v4_fields_t* cmf, pf2_2_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -672,7 +672,7 @@ int pf2_2_v2_get_fields(pf2_2_v2_fields_t* cmf, pf2_2_v2_t* cmp)
     return 0;
 }
 
-pf2_2_v2_t g_pf2_2_v2 = {
+pf2_2_v4_t g_pf2_2_v4 = {
     {{0}, 1, 9, 0},
     {{0}, 1, 16, 9},
     {{0}, 1, 8, 25},
@@ -682,19 +682,19 @@ pf2_2_v2_t g_pf2_2_v2 = {
     {{0}, 1, 2, 145},
 };
 
-pf2_2_v2_func_t g_func_pf2_2_v2 = {
-    pf2_2_v2_pack,
-    pf2_2_v2_unpack,
-    pf2_2_v2_set_fields,
-    pf2_2_v2_get_fields,
+pf2_2_v4_func_t g_func_pf2_2_v4 = {
+    pf2_2_v4_pack,
+    pf2_2_v4_unpack,
+    pf2_2_v4_set_fields,
+    pf2_2_v4_get_fields,
 };
 
-int pf2_3_v2_init(pf2_3_v2_t* cmp)
+int pf2_3_v4_init(pf2_3_v4_t* cmp)
 {
     if (!cmp) {
         return -1;
     }
-    memset(cmp, 0, sizeof(pf2_3_v2_t));
+    memset(cmp, 0, sizeof(pf2_3_v4_t));
     /* Initialize ipd2_f0 */
     cmp->ipd2_f0.num_val = 1;
     cmp->ipd2_f0.bit_width = 9;
@@ -726,7 +726,7 @@ int pf2_3_v2_init(pf2_3_v2_t* cmp)
     return 0;
 }
 
-int pf2_3_v2_pack(pf2_3_v2_t* cmp, uint8_t * bm)
+int pf2_3_v4_pack(pf2_3_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=0, w_id=39, b_id=0;
     if (!cmp) {
@@ -735,17 +735,17 @@ int pf2_3_v2_pack(pf2_3_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    PACK_V2_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f2, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f3, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f2, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f3, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf2_3_v2_unpack(pf2_3_v2_t* cmp, uint8_t * bm)
+int pf2_3_v4_unpack(pf2_3_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=0, w_id=39, b_id=0;
     if (!cmp) {
@@ -754,17 +754,17 @@ int pf2_3_v2_unpack(pf2_3_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    UNPACK_V2_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f2, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f3, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f0, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f1, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f2, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f3, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f4, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f5, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd2_f6, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf2_3_v2_clear_fields(pf2_3_v2_t* cmp)
+int pf2_3_v4_clear_fields(pf2_3_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -794,7 +794,7 @@ int pf2_3_v2_clear_fields(pf2_3_v2_t* cmp)
     return 0;
 }
 
-int pf2_3_v2_set_fields(pf2_3_v2_fields_t* cmf, pf2_3_v2_t* cmp)
+int pf2_3_v4_set_fields(pf2_3_v4_fields_t* cmf, pf2_3_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -824,7 +824,7 @@ int pf2_3_v2_set_fields(pf2_3_v2_fields_t* cmf, pf2_3_v2_t* cmp)
     return 0;
 }
 
-int pf2_3_v2_get_fields(pf2_3_v2_fields_t* cmf, pf2_3_v2_t* cmp)
+int pf2_3_v4_get_fields(pf2_3_v4_fields_t* cmf, pf2_3_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -854,7 +854,7 @@ int pf2_3_v2_get_fields(pf2_3_v2_fields_t* cmf, pf2_3_v2_t* cmp)
     return 0;
 }
 
-pf2_3_v2_t g_pf2_3_v2 = {
+pf2_3_v4_t g_pf2_3_v4 = {
     {{0}, 1, 9, 0},
     {{0}, 1, 16, 9},
     {{0}, 1, 8, 25},
@@ -864,19 +864,19 @@ pf2_3_v2_t g_pf2_3_v2 = {
     {{0}, 1, 2, 97},
 };
 
-pf2_3_v2_func_t g_func_pf2_3_v2 = {
-    pf2_3_v2_pack,
-    pf2_3_v2_unpack,
-    pf2_3_v2_set_fields,
-    pf2_3_v2_get_fields,
+pf2_3_v4_func_t g_func_pf2_3_v4 = {
+    pf2_3_v4_pack,
+    pf2_3_v4_unpack,
+    pf2_3_v4_set_fields,
+    pf2_3_v4_get_fields,
 };
 
-int pf1_1_v2_init(pf1_1_v2_t* cmp)
+int pf1_1_v4_init(pf1_1_v4_t* cmp)
 {
     if (!cmp) {
         return -1;
     }
-    memset(cmp, 0, sizeof(pf1_1_v2_t));
+    memset(cmp, 0, sizeof(pf1_1_v4_t));
     /* Initialize ipd1_f0 */
     cmp->ipd1_f0.num_val = 1;
     cmp->ipd1_f0.bit_width = 13;
@@ -896,7 +896,7 @@ int pf1_1_v2_init(pf1_1_v2_t* cmp)
     return 0;
 }
 
-int pf1_1_v2_pack(pf1_1_v2_t* cmp, uint8_t * bm)
+int pf1_1_v4_pack(pf1_1_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -905,14 +905,14 @@ int pf1_1_v2_pack(pf1_1_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    PACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_1_v2_unpack(pf1_1_v2_t* cmp, uint8_t * bm)
+int pf1_1_v4_unpack(pf1_1_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -921,14 +921,14 @@ int pf1_1_v2_unpack(pf1_1_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    UNPACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_1_v2_clear_fields(pf1_1_v2_t* cmp)
+int pf1_1_v4_clear_fields(pf1_1_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -949,7 +949,7 @@ int pf1_1_v2_clear_fields(pf1_1_v2_t* cmp)
     return 0;
 }
 
-int pf1_1_v2_set_fields(pf1_1_v2_fields_t* cmf, pf1_1_v2_t* cmp)
+int pf1_1_v4_set_fields(pf1_1_v4_fields_t* cmf, pf1_1_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -970,7 +970,7 @@ int pf1_1_v2_set_fields(pf1_1_v2_fields_t* cmf, pf1_1_v2_t* cmp)
     return 0;
 }
 
-int pf1_1_v2_get_fields(pf1_1_v2_fields_t* cmf, pf1_1_v2_t* cmp)
+int pf1_1_v4_get_fields(pf1_1_v4_fields_t* cmf, pf1_1_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -991,26 +991,26 @@ int pf1_1_v2_get_fields(pf1_1_v2_fields_t* cmf, pf1_1_v2_t* cmp)
     return 0;
 }
 
-pf1_1_v2_t g_pf1_1_v2 = {
+pf1_1_v4_t g_pf1_1_v4 = {
     {{0}, 1, 13, 0},
     {{0}, 1, 14, 13},
     {{0}, 1, 9, 27},
     {{0}, 1, 4, 36},
 };
 
-pf1_1_v2_func_t g_func_pf1_1_v2 = {
-    pf1_1_v2_pack,
-    pf1_1_v2_unpack,
-    pf1_1_v2_set_fields,
-    pf1_1_v2_get_fields,
+pf1_1_v4_func_t g_func_pf1_1_v4 = {
+    pf1_1_v4_pack,
+    pf1_1_v4_unpack,
+    pf1_1_v4_set_fields,
+    pf1_1_v4_get_fields,
 };
 
-int pf1_2_v2_init(pf1_2_v2_t* cmp)
+int pf1_2_v4_init(pf1_2_v4_t* cmp)
 {
     if (!cmp) {
         return -1;
     }
-    memset(cmp, 0, sizeof(pf1_2_v2_t));
+    memset(cmp, 0, sizeof(pf1_2_v4_t));
     /* Initialize ipd1_f4 */
     cmp->ipd1_f4.num_val = 1;
     cmp->ipd1_f4.bit_width = 16;
@@ -1038,7 +1038,7 @@ int pf1_2_v2_init(pf1_2_v2_t* cmp)
     return 0;
 }
 
-int pf1_2_v2_pack(pf1_2_v2_t* cmp, uint8_t * bm)
+int pf1_2_v4_pack(pf1_2_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -1047,16 +1047,16 @@ int pf1_2_v2_pack(pf1_2_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    PACK_V2_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f5, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f5, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_2_v2_unpack(pf1_2_v2_t* cmp, uint8_t * bm)
+int pf1_2_v4_unpack(pf1_2_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -1065,16 +1065,16 @@ int pf1_2_v2_unpack(pf1_2_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    UNPACK_V2_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f5, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f5, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_2_v2_clear_fields(pf1_2_v2_t* cmp)
+int pf1_2_v4_clear_fields(pf1_2_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1101,7 +1101,7 @@ int pf1_2_v2_clear_fields(pf1_2_v2_t* cmp)
     return 0;
 }
 
-int pf1_2_v2_set_fields(pf1_2_v2_fields_t* cmf, pf1_2_v2_t* cmp)
+int pf1_2_v4_set_fields(pf1_2_v4_fields_t* cmf, pf1_2_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1128,7 +1128,7 @@ int pf1_2_v2_set_fields(pf1_2_v2_fields_t* cmf, pf1_2_v2_t* cmp)
     return 0;
 }
 
-int pf1_2_v2_get_fields(pf1_2_v2_fields_t* cmf, pf1_2_v2_t* cmp)
+int pf1_2_v4_get_fields(pf1_2_v4_fields_t* cmf, pf1_2_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1155,7 +1155,7 @@ int pf1_2_v2_get_fields(pf1_2_v2_fields_t* cmf, pf1_2_v2_t* cmp)
     return 0;
 }
 
-pf1_2_v2_t g_pf1_2_v2 = {
+pf1_2_v4_t g_pf1_2_v4 = {
     {{0}, 1, 16, 0},
     {{0}, 1, 13, 16},
     {{0}, 1, 14, 29},
@@ -1164,19 +1164,19 @@ pf1_2_v2_t g_pf1_2_v2 = {
     {{0}, 1, 4, 68},
 };
 
-pf1_2_v2_func_t g_func_pf1_2_v2 = {
-    pf1_2_v2_pack,
-    pf1_2_v2_unpack,
-    pf1_2_v2_set_fields,
-    pf1_2_v2_get_fields,
+pf1_2_v4_func_t g_func_pf1_2_v4 = {
+    pf1_2_v4_pack,
+    pf1_2_v4_unpack,
+    pf1_2_v4_set_fields,
+    pf1_2_v4_get_fields,
 };
 
-int pf1_3_v2_init(pf1_3_v2_t* cmp)
+int pf1_3_v4_init(pf1_3_v4_t* cmp)
 {
     if (!cmp) {
         return -1;
     }
-    memset(cmp, 0, sizeof(pf1_3_v2_t));
+    memset(cmp, 0, sizeof(pf1_3_v4_t));
     /* Initialize ipd1_f4 */
     cmp->ipd1_f4.num_val = 1;
     cmp->ipd1_f4.bit_width = 16;
@@ -1200,7 +1200,7 @@ int pf1_3_v2_init(pf1_3_v2_t* cmp)
     return 0;
 }
 
-int pf1_3_v2_pack(pf1_3_v2_t* cmp, uint8_t * bm)
+int pf1_3_v4_pack(pf1_3_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -1209,15 +1209,15 @@ int pf1_3_v2_pack(pf1_3_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    PACK_V2_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_3_v2_unpack(pf1_3_v2_t* cmp, uint8_t * bm)
+int pf1_3_v4_unpack(pf1_3_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -1226,15 +1226,15 @@ int pf1_3_v2_unpack(pf1_3_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    UNPACK_V2_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_3_v2_clear_fields(pf1_3_v2_t* cmp)
+int pf1_3_v4_clear_fields(pf1_3_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1258,7 +1258,7 @@ int pf1_3_v2_clear_fields(pf1_3_v2_t* cmp)
     return 0;
 }
 
-int pf1_3_v2_set_fields(pf1_3_v2_fields_t* cmf, pf1_3_v2_t* cmp)
+int pf1_3_v4_set_fields(pf1_3_v4_fields_t* cmf, pf1_3_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1282,7 +1282,7 @@ int pf1_3_v2_set_fields(pf1_3_v2_fields_t* cmf, pf1_3_v2_t* cmp)
     return 0;
 }
 
-int pf1_3_v2_get_fields(pf1_3_v2_fields_t* cmf, pf1_3_v2_t* cmp)
+int pf1_3_v4_get_fields(pf1_3_v4_fields_t* cmf, pf1_3_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1306,7 +1306,7 @@ int pf1_3_v2_get_fields(pf1_3_v2_fields_t* cmf, pf1_3_v2_t* cmp)
     return 0;
 }
 
-pf1_3_v2_t g_pf1_3_v2 = {
+pf1_3_v4_t g_pf1_3_v4 = {
     {{0}, 1, 16, 0},
     {{0}, 1, 13, 16},
     {{0}, 1, 14, 29},
@@ -1314,19 +1314,19 @@ pf1_3_v2_t g_pf1_3_v2 = {
     {{0}, 1, 4, 52},
 };
 
-pf1_3_v2_func_t g_func_pf1_3_v2 = {
-    pf1_3_v2_pack,
-    pf1_3_v2_unpack,
-    pf1_3_v2_set_fields,
-    pf1_3_v2_get_fields,
+pf1_3_v4_func_t g_func_pf1_3_v4 = {
+    pf1_3_v4_pack,
+    pf1_3_v4_unpack,
+    pf1_3_v4_set_fields,
+    pf1_3_v4_get_fields,
 };
 
-int pf1_4_v2_init(pf1_4_v2_t* cmp)
+int pf1_4_v4_init(pf1_4_v4_t* cmp)
 {
     if (!cmp) {
         return -1;
     }
-    memset(cmp, 0, sizeof(pf1_4_v2_t));
+    memset(cmp, 0, sizeof(pf1_4_v4_t));
     /* Initialize ipd1_f4 */
     cmp->ipd1_f4.num_val = 1;
     cmp->ipd1_f4.bit_width = 16;
@@ -1354,7 +1354,7 @@ int pf1_4_v2_init(pf1_4_v2_t* cmp)
     return 0;
 }
 
-int pf1_4_v2_pack(pf1_4_v2_t* cmp, uint8_t * bm)
+int pf1_4_v4_pack(pf1_4_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -1363,16 +1363,16 @@ int pf1_4_v2_pack(pf1_4_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    PACK_V2_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f5, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f5, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_4_v2_unpack(pf1_4_v2_t* cmp, uint8_t * bm)
+int pf1_4_v4_unpack(pf1_4_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -1381,16 +1381,16 @@ int pf1_4_v2_unpack(pf1_4_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    UNPACK_V2_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f5, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f4, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f5, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_4_v2_clear_fields(pf1_4_v2_t* cmp)
+int pf1_4_v4_clear_fields(pf1_4_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1417,7 +1417,7 @@ int pf1_4_v2_clear_fields(pf1_4_v2_t* cmp)
     return 0;
 }
 
-int pf1_4_v2_set_fields(pf1_4_v2_fields_t* cmf, pf1_4_v2_t* cmp)
+int pf1_4_v4_set_fields(pf1_4_v4_fields_t* cmf, pf1_4_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1444,7 +1444,7 @@ int pf1_4_v2_set_fields(pf1_4_v2_fields_t* cmf, pf1_4_v2_t* cmp)
     return 0;
 }
 
-int pf1_4_v2_get_fields(pf1_4_v2_fields_t* cmf, pf1_4_v2_t* cmp)
+int pf1_4_v4_get_fields(pf1_4_v4_fields_t* cmf, pf1_4_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1471,7 +1471,7 @@ int pf1_4_v2_get_fields(pf1_4_v2_fields_t* cmf, pf1_4_v2_t* cmp)
     return 0;
 }
 
-pf1_4_v2_t g_pf1_4_v2 = {
+pf1_4_v4_t g_pf1_4_v4 = {
     {{0}, 1, 16, 0},
     {{0}, 1, 13, 16},
     {{0}, 1, 16, 29},
@@ -1480,19 +1480,19 @@ pf1_4_v2_t g_pf1_4_v2 = {
     {{0}, 1, 4, 68},
 };
 
-pf1_4_v2_func_t g_func_pf1_4_v2 = {
-    pf1_4_v2_pack,
-    pf1_4_v2_unpack,
-    pf1_4_v2_set_fields,
-    pf1_4_v2_get_fields,
+pf1_4_v4_func_t g_func_pf1_4_v4 = {
+    pf1_4_v4_pack,
+    pf1_4_v4_unpack,
+    pf1_4_v4_set_fields,
+    pf1_4_v4_get_fields,
 };
 
-int pf1_5_v2_init(pf1_5_v2_t* cmp)
+int pf1_5_v4_init(pf1_5_v4_t* cmp)
 {
     if (!cmp) {
         return -1;
     }
-    memset(cmp, 0, sizeof(pf1_5_v2_t));
+    memset(cmp, 0, sizeof(pf1_5_v4_t));
     /* Initialize ipd1_f7 */
     cmp->ipd1_f7.num_val = 1;
     cmp->ipd1_f7.bit_width = 17;
@@ -1520,7 +1520,7 @@ int pf1_5_v2_init(pf1_5_v2_t* cmp)
     return 0;
 }
 
-int pf1_5_v2_pack(pf1_5_v2_t* cmp, uint8_t * bm)
+int pf1_5_v4_pack(pf1_5_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -1529,16 +1529,16 @@ int pf1_5_v2_pack(pf1_5_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    PACK_V2_FIELD(cmp->ipd1_f7, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f8, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f7, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f8, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_5_v2_unpack(pf1_5_v2_t* cmp, uint8_t * bm)
+int pf1_5_v4_unpack(pf1_5_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -1547,16 +1547,16 @@ int pf1_5_v2_unpack(pf1_5_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    UNPACK_V2_FIELD(cmp->ipd1_f7, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f8, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f7, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f8, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_5_v2_clear_fields(pf1_5_v2_t* cmp)
+int pf1_5_v4_clear_fields(pf1_5_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1583,7 +1583,7 @@ int pf1_5_v2_clear_fields(pf1_5_v2_t* cmp)
     return 0;
 }
 
-int pf1_5_v2_set_fields(pf1_5_v2_fields_t* cmf, pf1_5_v2_t* cmp)
+int pf1_5_v4_set_fields(pf1_5_v4_fields_t* cmf, pf1_5_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1610,7 +1610,7 @@ int pf1_5_v2_set_fields(pf1_5_v2_fields_t* cmf, pf1_5_v2_t* cmp)
     return 0;
 }
 
-int pf1_5_v2_get_fields(pf1_5_v2_fields_t* cmf, pf1_5_v2_t* cmp)
+int pf1_5_v4_get_fields(pf1_5_v4_fields_t* cmf, pf1_5_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1637,7 +1637,7 @@ int pf1_5_v2_get_fields(pf1_5_v2_fields_t* cmf, pf1_5_v2_t* cmp)
     return 0;
 }
 
-pf1_5_v2_t g_pf1_5_v2 = {
+pf1_5_v4_t g_pf1_5_v4 = {
     {{0}, 1, 17, 0},
     {{0}, 1, 3, 17},
     {{0}, 1, 13, 20},
@@ -1646,19 +1646,19 @@ pf1_5_v2_t g_pf1_5_v2 = {
     {{0}, 1, 4, 56},
 };
 
-pf1_5_v2_func_t g_func_pf1_5_v2 = {
-    pf1_5_v2_pack,
-    pf1_5_v2_unpack,
-    pf1_5_v2_set_fields,
-    pf1_5_v2_get_fields,
+pf1_5_v4_func_t g_func_pf1_5_v4 = {
+    pf1_5_v4_pack,
+    pf1_5_v4_unpack,
+    pf1_5_v4_set_fields,
+    pf1_5_v4_get_fields,
 };
 
-int pf1_6_v2_init(pf1_6_v2_t* cmp)
+int pf1_6_v4_init(pf1_6_v4_t* cmp)
 {
     if (!cmp) {
         return -1;
     }
-    memset(cmp, 0, sizeof(pf1_6_v2_t));
+    memset(cmp, 0, sizeof(pf1_6_v4_t));
     /* Initialize ipd1_f7 */
     cmp->ipd1_f7.num_val = 1;
     cmp->ipd1_f7.bit_width = 17;
@@ -1694,7 +1694,7 @@ int pf1_6_v2_init(pf1_6_v2_t* cmp)
     return 0;
 }
 
-int pf1_6_v2_pack(pf1_6_v2_t* cmp, uint8_t * bm)
+int pf1_6_v4_pack(pf1_6_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -1703,18 +1703,18 @@ int pf1_6_v2_pack(pf1_6_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    PACK_V2_FIELD(cmp->ipd1_f7, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f8, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f9, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    PACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f7, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f8, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f9, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    PACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_6_v2_unpack(pf1_6_v2_t* cmp, uint8_t * bm)
+int pf1_6_v4_unpack(pf1_6_v4_t* cmp, uint8_t * bm)
 {
     uint32_t mk_msb=1, w_id=9, b_id=0;
     if (!cmp) {
@@ -1723,18 +1723,18 @@ int pf1_6_v2_unpack(pf1_6_v2_t* cmp, uint8_t * bm)
     if (!bm) {
         return -1;
     }
-    UNPACK_V2_FIELD(cmp->ipd1_f7, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f8, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f9, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
-    UNPACK_V2_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f7, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f8, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f0, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f1, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f6, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f9, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f2, w_id, b_id, bm, mk_msb);
+    UNPACK_V4_FIELD(cmp->ipd1_f3, w_id, b_id, bm, mk_msb);
     return 0;
 }
 
-int pf1_6_v2_clear_fields(pf1_6_v2_t* cmp)
+int pf1_6_v4_clear_fields(pf1_6_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1767,7 +1767,7 @@ int pf1_6_v2_clear_fields(pf1_6_v2_t* cmp)
     return 0;
 }
 
-int pf1_6_v2_set_fields(pf1_6_v2_fields_t* cmf, pf1_6_v2_t* cmp)
+int pf1_6_v4_set_fields(pf1_6_v4_fields_t* cmf, pf1_6_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1800,7 +1800,7 @@ int pf1_6_v2_set_fields(pf1_6_v2_fields_t* cmf, pf1_6_v2_t* cmp)
     return 0;
 }
 
-int pf1_6_v2_get_fields(pf1_6_v2_fields_t* cmf, pf1_6_v2_t* cmp)
+int pf1_6_v4_get_fields(pf1_6_v4_fields_t* cmf, pf1_6_v4_t* cmp)
 {
     uint32_t i;
     if (!cmp) {
@@ -1833,7 +1833,7 @@ int pf1_6_v2_get_fields(pf1_6_v2_fields_t* cmf, pf1_6_v2_t* cmp)
     return 0;
 }
 
-pf1_6_v2_t g_pf1_6_v2 = {
+pf1_6_v4_t g_pf1_6_v4 = {
     {{0}, 1, 17, 0},
     {{0}, 1, 3, 17},
     {{0}, 1, 13, 20},
@@ -1844,24 +1844,24 @@ pf1_6_v2_t g_pf1_6_v2 = {
     {{0}, 1, 4, 82},
 };
 
-pf1_6_v2_func_t g_func_pf1_6_v2 = {
-    pf1_6_v2_pack,
-    pf1_6_v2_unpack,
-    pf1_6_v2_set_fields,
-    pf1_6_v2_get_fields,
+pf1_6_v4_func_t g_func_pf1_6_v4 = {
+    pf1_6_v4_pack,
+    pf1_6_v4_unpack,
+    pf1_6_v4_set_fields,
+    pf1_6_v4_get_fields,
 };
 
-int inno_unpack_cmhdr_v2(uint8_t * buf, ipd_fields_v2_t * ipdfld_p)
+int inno_unpack_cmhdr_v4(uint8_t * buf, ipd_fields_v4_t * ipdfld_p)
 {
-    cfx_v2_t cmf;
+    cfx_v4_t cmf;
     int rc;
     if (!buf || !ipdfld_p)
         return -1;
-    memset(ipdfld_p, 0, sizeof(ipd_fields_v2_t));
-    rc = cfx_v2_init(&cmf);
+    memset(ipdfld_p, 0, sizeof(ipd_fields_v4_t));
+    rc = cfx_v4_init(&cmf);
     if (rc != 0)
         return rc;
-    rc = cfx_v2_unpack(&cmf, buf);
+    rc = cfx_v4_unpack(&cmf, buf);
     if (rc != 0)
         return rc;
     ipdfld_p->e1 = cmf.ipd_f14.value[0];
@@ -1869,11 +1869,11 @@ int inno_unpack_cmhdr_v2(uint8_t * buf, ipd_fields_v2_t * ipdfld_p)
     switch (ipdfld_p->e1 + 1) {
         case 1:
         {
-            pf1_1_v2_t pf1_1;
-            rc = pf1_1_v2_init(&pf1_1);
+            pf1_1_v4_t pf1_1;
+            rc = pf1_1_v4_init(&pf1_1);
             if (rc != 0)
                 return rc;
-            rc = pf1_1_v2_unpack(&pf1_1, buf);
+            rc = pf1_1_v4_unpack(&pf1_1, buf);
             if (rc != 0)
                 return rc;
             ipdfld_p->vni = pf1_1.ipd1_f0.value[0];
@@ -1881,11 +1881,11 @@ int inno_unpack_cmhdr_v2(uint8_t * buf, ipd_fields_v2_t * ipdfld_p)
         break;
         case 2:
         {
-            pf1_2_v2_t pf1_2;
-            rc = pf1_2_v2_init(&pf1_2);
+            pf1_2_v4_t pf1_2;
+            rc = pf1_2_v4_init(&pf1_2);
             if (rc != 0)
                 return rc;
-            rc = pf1_2_v2_unpack(&pf1_2, buf);
+            rc = pf1_2_v4_unpack(&pf1_2, buf);
             if (rc != 0)
                 return rc;
             ipdfld_p->vni = pf1_2.ipd1_f0.value[0];
@@ -1893,11 +1893,11 @@ int inno_unpack_cmhdr_v2(uint8_t * buf, ipd_fields_v2_t * ipdfld_p)
         break;
         case 3:
         {
-            pf1_3_v2_t pf1_3;
-            rc = pf1_3_v2_init(&pf1_3);
+            pf1_3_v4_t pf1_3;
+            rc = pf1_3_v4_init(&pf1_3);
             if (rc != 0)
                 return rc;
-            rc = pf1_3_v2_unpack(&pf1_3, buf);
+            rc = pf1_3_v4_unpack(&pf1_3, buf);
             if (rc != 0)
                 return rc;
             ipdfld_p->vni = pf1_3.ipd1_f0.value[0];
@@ -1906,11 +1906,11 @@ int inno_unpack_cmhdr_v2(uint8_t * buf, ipd_fields_v2_t * ipdfld_p)
         break;
         case 4:
         {
-            pf1_4_v2_t pf1_4;
-            rc = pf1_4_v2_init(&pf1_4);
+            pf1_4_v4_t pf1_4;
+            rc = pf1_4_v4_init(&pf1_4);
             if (rc != 0)
                 return rc;
-            rc = pf1_4_v2_unpack(&pf1_4, buf);
+            rc = pf1_4_v4_unpack(&pf1_4, buf);
             if (rc != 0)
                 return rc;
             ipdfld_p->vni = pf1_4.ipd1_f0.value[0];
@@ -1919,11 +1919,11 @@ int inno_unpack_cmhdr_v2(uint8_t * buf, ipd_fields_v2_t * ipdfld_p)
         break;
         case 5:
         {
-            pf1_5_v2_t pf1_5;
-            rc = pf1_5_v2_init(&pf1_5);
+            pf1_5_v4_t pf1_5;
+            rc = pf1_5_v4_init(&pf1_5);
             if (rc != 0)
                 return rc;
-            rc = pf1_5_v2_unpack(&pf1_5, buf);
+            rc = pf1_5_v4_unpack(&pf1_5, buf);
             if (rc != 0)
                 return rc;
             ipdfld_p->vni = pf1_5.ipd1_f0.value[0];
@@ -1931,11 +1931,11 @@ int inno_unpack_cmhdr_v2(uint8_t * buf, ipd_fields_v2_t * ipdfld_p)
         break;
         case 6:
         {
-            pf1_6_v2_t pf1_6;
-            rc = pf1_6_v2_init(&pf1_6);
+            pf1_6_v4_t pf1_6;
+            rc = pf1_6_v4_init(&pf1_6);
             if (rc != 0)
                 return rc;
-            rc = pf1_6_v2_unpack(&pf1_6, buf);
+            rc = pf1_6_v4_unpack(&pf1_6, buf);
             if (rc != 0)
                 return rc;
             ipdfld_p->vni = pf1_6.ipd1_f0.value[0];
@@ -1948,11 +1948,11 @@ int inno_unpack_cmhdr_v2(uint8_t * buf, ipd_fields_v2_t * ipdfld_p)
     switch (ipdfld_p->e2 + 1) {
         case 1:
         {
-            pf2_1_v2_t pf2_1;
-            rc = pf2_1_v2_init(&pf2_1);
+            pf2_1_v4_t pf2_1;
+            rc = pf2_1_v4_init(&pf2_1);
             if (rc != 0)
                 return rc;
-            rc = pf2_1_v2_unpack(&pf2_1, buf);
+            rc = pf2_1_v4_unpack(&pf2_1, buf);
             if (rc != 0)
                 return rc;
             ipdfld_p->ttl = pf2_1.ipd2_f0.value[0];
@@ -1960,11 +1960,11 @@ int inno_unpack_cmhdr_v2(uint8_t * buf, ipd_fields_v2_t * ipdfld_p)
         break;
         case 2:
         {
-            pf2_2_v2_t pf2_2;
-            rc = pf2_2_v2_init(&pf2_2);
+            pf2_2_v4_t pf2_2;
+            rc = pf2_2_v4_init(&pf2_2);
             if (rc != 0)
                 return rc;
-            rc = pf2_2_v2_unpack(&pf2_2, buf);
+            rc = pf2_2_v4_unpack(&pf2_2, buf);
             if (rc != 0)
                 return rc;
             ipdfld_p->ttl = pf2_2.ipd2_f0.value[0];
@@ -1972,11 +1972,11 @@ int inno_unpack_cmhdr_v2(uint8_t * buf, ipd_fields_v2_t * ipdfld_p)
         break;
         case 3:
         {
-            pf2_3_v2_t pf2_3;
-            rc = pf2_3_v2_init(&pf2_3);
+            pf2_3_v4_t pf2_3;
+            rc = pf2_3_v4_init(&pf2_3);
             if (rc != 0)
                 return rc;
-            rc = pf2_3_v2_unpack(&pf2_3, buf);
+            rc = pf2_3_v4_unpack(&pf2_3, buf);
             if (rc != 0)
                 return rc;
             ipdfld_p->ttl = pf2_3.ipd2_f0.value[0];

@@ -189,8 +189,7 @@ void inno_populate_inno_hdr_v2(inno_ldh_t         *ldh_hdr,
 int inno_unpack_ldh_header_v2(uint8_t *buf,
                               inno_ldh_t *ldh_hdr);
 bool inno_debug_hdr_present_v2(inno_ldh_t *ldh_hdr);
-int
-inno_vf2_queue_set_v2(uint8_t *buf,
+int inno_vf2_queue_set_v2(uint8_t *buf,
                       uint8_t queue);
 uint32_t inno_get_ssp_v2(inno_ldh_t *ldh_hdr);
 int inno_unpack_ext_hdrs_v2(inno_device_t *idev,
@@ -202,4 +201,45 @@ int inno_unpack_ext_hdrs_v2(inno_device_t *idev,
                             uint8_t  *ext_hdr_type,
                             uint32_t *sp);
 
+/* TL12 header handlers */
+void inno_populate_inno_hdr_v3(inno_ldh_t         *ldh_hdr,
+                               inno_info_header_t *ih,
+                               inno_dma_alloc_t  *dma,
+                               uint8_t           ext_hdr_type,
+                               uint8_t           ext_hdrs_size);
+int inno_unpack_ldh_header_v3(uint8_t *buf,
+                              inno_ldh_t *ldh_hdr);
+bool inno_debug_hdr_present_v3(inno_ldh_t *ldh_hdr);
+int inno_vf2_queue_set_v3(uint8_t *buf,
+                          uint8_t queue);
+uint32_t inno_get_ssp_v3(inno_ldh_t *ldh_hdr);
+int inno_unpack_ext_hdrs_v3(inno_device_t *idev,
+                            inno_dma_alloc_t *dma,
+                            inno_ldh_t *ldh_hdr,
+                            uint32_t *ext_hdrs_size,
+                            uint8_t  *ext_info_hdrs,
+                            uint32_t *ext_info_hdrs_size,
+                            uint8_t  *ext_hdr_type,
+                            uint32_t *sp);
+
+/* T100 header handlers */
+void inno_populate_inno_hdr_v4(inno_ldh_t         *ldh_hdr,
+                               inno_info_header_t *ih,
+                               inno_dma_alloc_t  *dma,
+                               uint8_t           ext_hdr_type,
+                               uint8_t           ext_hdrs_size);
+int inno_unpack_ldh_header_v4(uint8_t *buf,
+                              inno_ldh_t *ldh_hdr);
+bool inno_debug_hdr_present_v4(inno_ldh_t *ldh_hdr);
+int inno_vf2_queue_set_v4(uint8_t *buf,
+                          uint8_t queue);
+uint32_t inno_get_ssp_v4(inno_ldh_t *ldh_hdr);
+int inno_unpack_ext_hdrs_v4(inno_device_t *idev,
+                            inno_dma_alloc_t *dma,
+                            inno_ldh_t *ldh_hdr,
+                            uint32_t *ext_hdrs_size,
+                            uint8_t  *ext_info_hdrs,
+                            uint32_t *ext_info_hdrs_size,
+                            uint8_t  *ext_hdr_type,
+                            uint32_t *sp);
 #endif /* _INNO_ENET_H_ */

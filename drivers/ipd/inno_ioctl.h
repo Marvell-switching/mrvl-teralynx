@@ -49,7 +49,12 @@ disclaimer.
 #ifndef LDH_HEADER_MAX_SIZE
 #define LDH_HEADER_MAX_SIZE 20
 #endif
-#define LDH_MAX_HEADERS_SIZE (LDH_HEADER_MAX_SIZE*LDH_HEADER_MAX_NUM)
+
+#ifndef LDH_BASE_HEADER_SIZE
+#define LDH_BASE_HEADER_SIZE 4 /* In TL12 */
+#endif
+
+#define LDH_MAX_HEADERS_SIZE (LDH_HEADER_MAX_SIZE*LDH_HEADER_MAX_NUM + LDH_BASE_HEADER_SIZE)
 
 #endif
 
@@ -98,6 +103,8 @@ typedef struct {
     uint64_t serial_num;                /** Device serial number */
     uint64_t bar0;                      /** Bus addr of mem bar0 */
     uint64_t bar0_size;                 /** Mapped size of bar0*/
+    uint64_t bar2;                      /** Bus addr of mem bar2 */
+    uint64_t bar2_size;                 /** Mapped size of bar2*/
     uint64_t pool_baddr;                /** Bus addr of pool */
     uint64_t pool_paddr;                /** Physical addr of pool */
     uint16_t vendor_id;                 /** PCI vendor ID */
@@ -358,6 +365,11 @@ typedef struct {
 typedef struct {
    int value;
 } inno_ioctl_flow_init_t;
+
+typedef struct {
+    int egress_sflow_mode;
+} inno_ioctl_sflow_params_t;
+
 /* Probes number of nodes */
 
 #define IPD_INFO_NODES    _IOR(IFCS_IPD_MAGIC, 1, inno_ioctl_nodes_t *)
@@ -448,4 +460,8 @@ typedef struct {
 
 /* Override ipd cleanup resources */
 #define IPD_CLEANUP_RESOURCES     _IOW(IFCS_IPD_MAGIC, 39, int)
+
+/* Set ipd sflow params */
+#define IPD_SFLOW_SET_PARAMS     _IOW(IFCS_IPD_MAGIC, 40, int)
+
 #endif /* __IPD_IOCTL_H__ */

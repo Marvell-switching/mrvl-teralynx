@@ -1,30 +1,13 @@
-/*******************************************************************************
-Copyright (C) Marvell International Ltd. and its affiliates
-
-This software file (the "File") is owned and distributed by Marvell
-International Ltd. and/or its affiliates ("Marvell") under the following
-alternative licensing terms.  Once you have made an election to distribute the
-File under one of the following license alternatives, please (i) delete this
-introductory statement regarding license alternatives, (ii) delete the two
-license alternatives that you have not elected to use and (iii) preserve the
-Marvell copyright notice above.
-
-********************************************************************************
-Marvell GPL License Option
-
-If you received this File from Marvell, you may opt to use, redistribute and/or
-modify this File in accordance with the terms and conditions of the General
-Public License Version 2, June 1991 (the "GPL License"), a copy of which is
-available along with the File in the license.txt file or by writing to the Free
-Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 or
-on the worldwide web at http://www.gnu.org/licenses/gpl.txt.
-
-THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE IMPLIED
-WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE ARE EXPRESSLY
-DISCLAIMED.  The GPL License provides additional details about this warranty
-disclaimer.
-*******************************************************************************/
-
+/*
+ *-------------------------------------------------------------------------------------
+ * Copyright (c) (2021) Marvell. All rights reserved.
+ *
+ * The following file is subject to the limited use license agreement
+ * by and between Marvell and you your employer or other entity on
+ * behalf of whom you act. In the absence of such license agreement
+ * the following file is subject to Marvell’s standard Limited Use License Agreement.
+ *-------------------------------------------------------------------------------------
+ */
 #ifndef __INNO_CMIPD_V2_H__ 
 #define __INNO_CMIPD_V2_H__ 
                          
@@ -58,14 +41,14 @@ typedef struct bitset_v2_s
     do {                                            \
         uint32_t i, j;                              \
         bitset_v2_t *fn = &_fldn;                    \
-        for (i=0; i < fn->bit_width; i++) {         \
-            j = i % 32;                             \
+        for (i=fn->bit_width; i>0; i--) {           \
+            j = (i-1) % 32;                             \
             if ((_bid) > 7) {                       \
                 if (_msb) {(_wid)++;}               \
                 else {(_wid)--;}                    \
                 (_bid)=0;                           \
             }                                       \
-            (_bm)[(_wid)] |= ((fn->value[i/32] & (1 << j)) >> j) << (_bid); \
+            (_bm)[(_wid)] |= ((fn->value[i/32] & (1 << j)) >> j) << (7-_bid); \
             (_bid)++;                               \
         }                                           \
     } while (0)
@@ -87,7 +70,7 @@ typedef struct bitset_v2_s
                 else {(_wid)--;}                     \
                 j = 0;                               \
             }                                        \
-            fn->value[i/32] |= (uint32_t) ((bm[_wid] & (1 << j)) >> j) << shift; \
+            fn->value[i/32] |= (uint32_t) ((bm[_wid] & (1 << (7-j))) >> (7-j)) << (fn->bit_width - 1 - shift); \
             j++;                                     \
             (_bid)++;                                \
         }                                            \

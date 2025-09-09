@@ -170,7 +170,7 @@ inno_enet_tx(struct sk_buff    *skb,
 {
     unsigned long lock_flags;
 
-    inno_enet_adapter_t       *enet;
+    const inno_enet_adapter_t *enet;
     struct page               *page;
     void                      *vmaddr;
     inno_device_t             *idev;
@@ -187,6 +187,8 @@ inno_enet_tx(struct sk_buff    *skb,
     struct sk_buff            *ldh_skb = NULL;
     uint8_t                   queue = 0;
     uint8_t                   is_tx_queue_valid = 0;
+    uint16_t                  sysport = 0;
+
 
     enet = (inno_enet_adapter_t *) netdev_priv(dev);
     if (enet == NULL) {
@@ -196,7 +198,7 @@ inno_enet_tx(struct sk_buff    *skb,
     idev = enet->idev;
 
     if (idev->inno_netdev.num_interfaces == 0){
-        ipd_err("Netdev interface not created\n");
+        ipd_debug("Netdev interface not created\n");
         return NETDEV_TX_BUSY;
     }
 
@@ -223,16 +225,20 @@ inno_enet_tx(struct sk_buff    *skb,
 
     pidx = tx_ring->pidx;          /* Local copy */
 
+    ipd_debug("Netdev TX sysport %d", enet->sysport);
     ipd_debug("TX ring %d pidx: 0x%x cidx: 0x%x(0x%x)\n", tx_ring->num, tx_ring->pidx,
                tx_ring->work_cidx, tx_ring->cidx);
 
-    if((idev->inno_netdev.info_header) && (idev->inno_netdev.single_interface)) {
+    ipd_debug("Netdev sysport in TX is %d\n", enet->sysport);
+
+    sysport = enet->sysport;
+
+    if(idev->inno_netdev.info_header) {
         inno_info_header_t        *ihp;
         ihp = (inno_info_header_t *)skb->data;
         is_tx_queue_valid = ihp->flag & INNO_TX_QUEUE_NUM_VALID;
-
         if(ihp->flag & INNO_TX_TYPE_PIPELINE_LOOKUP) {
-            enet->sysport =  ihp->ssp;
+            sysport =  ihp->ssp;
             syshdr_lookup_type = PIPELINE_LOOKUP;
             if (ihp->flag & INNO_TX_TYPE_ACL_BYPASS_LOOKUP) {
                 abp_mode = 1;
@@ -241,22 +247,40 @@ inno_enet_tx(struct sk_buff    *skb,
                 ipd_debug("Lookup enabled");
             }
         } else if(ihp->flag & INNO_TX_TYPE_PTP_XCONNECT) {
-            enet->sysport =  ihp->dsp;
+            sysport =  ihp->dsp;
             syshdr_lookup_type = PIPELINE_PTP;
         } else {
             /* Default option is BYPASS */
-            enet->sysport =  ihp->dsp;
+            sysport =  ihp->dsp;
             syshdr_lookup_type = PIPELINE_BYPASS;
             if (is_tx_queue_valid) {
                 queue = ihp->queue;
             }
         }
-        ipd_debug("Sysport received in TX is %d and version is 0x%x, syshdr_lookup_type=%d\n", enet->sysport, ihp->ver, syshdr_lookup_type);
+
+        if (!idev->inno_netdev.single_interface) {
+            if (sysport != 0) {
+                /* Sysport (dsp in BYPASS mode, ssp in LOOKUP mode) should be set to zero */
+                /* Drop the packet */
+                spin_unlock_irqrestore(&idev->lock, lock_flags);
+                ipd_err("Invalid sysport %d, it should be 0 in multi netdev mode with info header enabled\n",sysport);
+                idev->inno_stats.tx_ring_stats[tx_ring->num].drops++;
+                if (ipd_loglevel >= IPD_LOGLEVEL_DEBUG){
+                    packet_hex_dump(skb);
+                }
+                dev_kfree_skb_any(skb);
+                return NETDEV_TX_OK;       /* The only real choice */
+            }
+
+            sysport = enet->sysport;
+        }
+
+        ipd_debug("Sysport received in TX is %d and version is 0x%x, syshdr_lookup_type=%d\n", sysport, ihp->ver, syshdr_lookup_type);
     }
 
-    if (enet->sysport >= NUM_SYSPORTS) {
+    if (sysport >= NUM_SYSPORTS) {
         spin_unlock_irqrestore(&idev->lock, lock_flags);
-        ipd_err("Invalid sysport %d\n",enet->sysport);
+        ipd_err("Invalid sysport %d\n",sysport);
         idev->inno_stats.tx_ring_stats[tx_ring->num].drops++;
         if (ipd_loglevel >= IPD_LOGLEVEL_DEBUG){
             packet_hex_dump(skb);
@@ -268,13 +292,13 @@ inno_enet_tx(struct sk_buff    *skb,
     if(idev->inno_netdev.single_interface) {
         ndev = idev->sysport_devs[idev->inno_netdev.ndev_sindex];
     } else {
-        ndev = idev->sysport_devs[enet->sysport];
+        ndev = idev->sysport_devs[sysport];
     }
 
     /* Sysport not initialized */
-    if(idev->syshdr1_cnt[enet->sysport] == 0) {
+    if(idev->syshdr1_cnt[sysport] == 0) {
         spin_unlock_irqrestore(&idev->lock, lock_flags);
-        ipd_err("Invalid sysport %d\n",enet->sysport);
+        ipd_err("Invalid sysport %d\n",sysport);
         idev->inno_stats.tx_ring_stats[tx_ring->num].drops++;
         if (ipd_loglevel >= IPD_LOGLEVEL_DEBUG){
             packet_hex_dump(skb);
@@ -284,7 +308,7 @@ inno_enet_tx(struct sk_buff    *skb,
     }
 
     /* If sysport is CPU port use LOOKUP */
-    if(idev->inno_netdev.cpu_port[enet->sysport] == 1) {
+    if(idev->inno_netdev.cpu_port[sysport] == 1) {
         syshdr_lookup_type = PIPELINE_LOOKUP;
     }
 
@@ -294,17 +318,17 @@ inno_enet_tx(struct sk_buff    *skb,
         ipd_debug("TX type lookup\n");
         idev->inno_stats.tx_stats.tx_lookup_packets++;
         if (abp_mode) {
-            dma_addr = idev->syshdr1_abp_ba + (SYSHDR_SIZE * 2 * enet->sysport);
-            hdr_size = idev->chip_hdr_len * idev->syshdr1_cnt[enet->sysport];
+            dma_addr = idev->syshdr1_abp_ba + (SYSHDR_SIZE * 2 * sysport);
+            hdr_size = idev->chip_hdr_len * idev->syshdr1_cnt[sysport];
         } else {
-            dma_addr = idev->syshdr1_ba + (SYSHDR_SIZE * 2 * enet->sysport);
-            hdr_size = idev->chip_hdr_len * idev->syshdr1_cnt[enet->sysport];
+            dma_addr = idev->syshdr1_ba + (SYSHDR_SIZE * 2 * sysport);
+            hdr_size = idev->chip_hdr_len * idev->syshdr1_cnt[sysport];
         }
     } else if (syshdr_lookup_type == PIPELINE_PTP) {
 
         ipd_debug("TX type ptp xconnect\n");
         idev->inno_stats.tx_stats.tx_ptp_packets++;
-        dma_addr = idev->syshdr1_ptp_ba + (SYSHDR_SIZE * enet->sysport);
+        dma_addr = idev->syshdr1_ptp_ba + (SYSHDR_SIZE * sysport);
         hdr_size = idev->chip_hdr_len;
         ipd_debug("PTP hdr size %d\n", hdr_size);
     } else if (syshdr_lookup_type == PIPELINE_BYPASS) {
@@ -330,7 +354,7 @@ inno_enet_tx(struct sk_buff    *skb,
 
            skb_reset_mac_header( ldh_skb );
            ldh = skb_put(ldh_skb, hdr_size);
-           memcpy(ldh, idev->syshdr2 + (SYSHDR_SIZE * enet->sysport), hdr_size);
+           memcpy(ldh, idev->syshdr2 + (SYSHDR_SIZE * sysport), hdr_size);
 
            if (inno_vf2_queue_set(ldh, queue) < 0) {
                spin_unlock_irqrestore(&idev->lock, lock_flags);
@@ -348,7 +372,7 @@ inno_enet_tx(struct sk_buff    *skb,
 #endif
         }
         else {
-            dma_addr = idev->syshdr2_ba + (SYSHDR_SIZE * enet->sysport);
+            dma_addr = idev->syshdr2_ba + (SYSHDR_SIZE * sysport);
             hdr_size = idev->chip_hdr_len;
 
             ipd_verbose("TX queue %d is invalid\n", queue);
@@ -365,7 +389,7 @@ inno_enet_tx(struct sk_buff    *skb,
     desc.length    = hdr_size;
     desc.sop = 1;
 
-    ipd_debug("TX: SOP Address Virtual - %p Physical - 0x%x 0x%x hdr_size - %d sysport - %d\n", idev->syshdr2, (unsigned int)desc.hsn_upper, (unsigned int)desc.hsn_lower, hdr_size, enet->sysport);
+    ipd_debug("TX: SOP Address Virtual - %p Physical - 0x%x 0x%x hdr_size - %d sysport - %d\n", idev->syshdr2, (unsigned int)desc.hsn_upper, (unsigned int)desc.hsn_lower, hdr_size, sysport);
 
     /* Copy the cached copy of the descriptor to the actual ring */
     memcpy(&tx_ring->tx_desc[RING_IDX_MASKED(pidx)], &desc,
@@ -776,6 +800,9 @@ void send_sflow_packet(inno_device_t *idev, struct sk_buff *skb,
             ipd_err("Netdev for sp %d not found\n", out_sp);
         }
     }
+
+    ipd_debug("in_ifindex: %d out_ifindex: %d\n", in_ifindex, out_ifindex);
+
     meta_len = (in_ifindex ? nla_total_size(sizeof(uint16_t)) : 0) +
         (out_ifindex ? nla_total_size(sizeof(uint16_t)) : 0) +
         nla_total_size(sizeof(uint32_t)) +    /* sample_rate */
@@ -887,7 +914,7 @@ inno_receive_sflow(inno_device_t *idev, struct sk_buff *skb, struct net *inet)
     }
 
     /* Set skb->data to point to eth header */
-    if (idev->inno_netdev.single_interface) {
+    if (idev->inno_netdev.info_header) {
         skb_pull(skb, NETDEV_INFO_HEADER_SIZE-ETH_HLEN);
     } else {
         skb_push(skb, ETH_HLEN);
@@ -905,7 +932,14 @@ inno_receive_sflow(inno_device_t *idev, struct sk_buff *skb, struct net *inet)
     sflow_dir = (htonl(*pkt_ptr) >> 15)&0x1;
     if(sflow_dir) {
         /* Egress */
-        i_sp = 0;
+        ipd_debug("Sflow egress mode: %d\n", idev->inno_sflow_params_info.egress_sflow_mode);
+        if (idev->inno_sflow_params_info.egress_sflow_mode == 1 /*IFCS_EGRESS_SFLOW_MODE_SOURCE_PORT*/) {
+            i_sp = htonl(pkt_ptr[2]) & 0xffff;
+        }
+        else {
+            i_sp = 0;
+        }
+        ipd_debug("i_sp = %d\n", i_sp);
         sp = e_sp = htonl(*pkt_ptr)&0x7fff;
         sample_rate = idev->inno_netdev.esflow_sample_rate[sp];
     } else {
@@ -963,7 +997,7 @@ send_pgenl_packet(inno_device_t *idev, struct sk_buff *skb, struct net *inet, in
     void *data;
 
     /* Set skb->data to point to eth header */
-    if (idev->inno_netdev.single_interface) {
+    if (idev->inno_netdev.info_header) {
         skb_pull(skb, NETDEV_INFO_HEADER_SIZE-ETH_HLEN);
     } else {
         skb_push(skb, ETH_HLEN);
@@ -1288,9 +1322,11 @@ inno_rx_ring_poll(struct napi_struct *napi,
         ssp           =  inno_get_ssp(&ldh);
         /* Egress sflow case ssp in LDH will be 0 *
          * Get ssp from SFLOW header              */
+        ipd_debug("LDH ssp: %d\n", ssp);
         if ((pkt_sflow == 1) && (ssp == 0)) {
             ssp = sflow_sp;
         }
+        ipd_debug("Sflow ssp: %d pkt_sflow: %d\n", sflow_sp, pkt_sflow);
 
         if (idev->inno_netdev.single_interface)
             sysport        = idev->inno_netdev.ndev_sindex;
@@ -1530,7 +1566,7 @@ inno_rx_ring_poll(struct napi_struct *napi,
             ipd_debug("Received packet with trapid %d\n", ih.trap);
             if (wb.eop) {
                 int ret;
-                ipd_debug("RX: skb len %d data_len %d\n", skb->len, skb->data_len);
+                ipd_debug("RX: skb len %d data_len %d pkt_sflow %d inno_netlink.sflow  %d\n", skb->len, skb->data_len, pkt_sflow, idev->inno_netlink.sflow);
                 if((pkt_sflow) && (idev->inno_netlink.sflow == 1)) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
                     inno_receive_sflow(idev, skb, dev_net(ndev));
@@ -1945,6 +1981,22 @@ inno_napi_init(inno_device_t  *idev)
         inno_populate_inno_hdr = inno_populate_inno_hdr_v2;
         inno_get_ssp           = inno_get_ssp_v2;
         inno_vf2_queue_set     = inno_vf2_queue_set_v2;
+     } else if(idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
+        
+        inno_unpack_ldh_header = inno_unpack_ldh_header_v3;
+        inno_debug_hdr_present = inno_debug_hdr_present_v3;
+        inno_unpack_ext_hdrs   = inno_unpack_ext_hdrs_v3;
+        inno_populate_inno_hdr = inno_populate_inno_hdr_v3;
+        inno_get_ssp           = inno_get_ssp_v3;
+        inno_vf2_queue_set     = inno_vf2_queue_set_v3;
+     } else if(idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
+        
+        inno_unpack_ldh_header = inno_unpack_ldh_header_v4;
+        inno_debug_hdr_present = inno_debug_hdr_present_v4;
+        inno_unpack_ext_hdrs   = inno_unpack_ext_hdrs_v4;
+        inno_populate_inno_hdr = inno_populate_inno_hdr_v4;
+        inno_get_ssp           = inno_get_ssp_v4;
+        inno_vf2_queue_set     = inno_vf2_queue_set_v4;
     } else {
         ipd_err("Unknown innovium device\n");
         return -ENODEV;
