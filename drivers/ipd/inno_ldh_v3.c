@@ -24,17 +24,22 @@ WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE ARE EXPRESSLY
 DISCLAIMED.  The GPL License provides additional details about this warranty
 disclaimer.
 *******************************************************************************/
+/*
+ * TODO TL12: This file is cloned from V2(TL10).
+ * The debug header format may be different for V3(TL12).
+ * Revisit once TL12 debug header available.
+ */
 
 #include <linux/types.h>
 #include <linux/if_vlan.h>
 #include "pci_common_ipd.h"
 #include "ipd.h"
-#include "ldh_structs_ipd_v2.h"
+#include "ldh_structs_ipd_v3.h"
 #include "inno_ldh.h"
 #include "inno_enet.h"
-#include "inno_cmipd_v2.h"
+#include "inno_cmipd_v3.h"
 
-typedef struct ldh_v2_s {
+typedef struct ldh_v3_s {
     union {
         ldh_fixed_format_t ldh_fixed;
         ldh_vf0_t          vf0;
@@ -42,30 +47,15 @@ typedef struct ldh_v2_s {
         ldh_vf2_t          vf2;
  /*  */
     } _u;
-} inno_ldh_v2_t;
+} inno_ldh_v3_t;
 
-struct ptp_header {
-    uint8_t             tsmt; /* transportSpecific | messageType */
-    uint8_t             ver;  /* reserved          | versionPTP  */
-    uint16_t            messageLength;
-    uint8_t             domainNumber;
-    uint8_t             reserved1;
-    uint8_t             flagField[2];
-    uint64_t            correction;
-    uint32_t            reserved2;
-    uint8_t             id[8];
-    uint16_t            portNumber;
-    uint16_t            sequenceId;
-    uint8_t             control;
-    uint8_t             logMessageInterval;
-} __attribute__((packed));
 
 /* Unpack LDH into buffer */
 int
-inno_unpack_ldh_header_v2(uint8_t    *buf,
+inno_unpack_ldh_header_v3(uint8_t    *buf,
                           inno_ldh_t *ldh_hdr)
 {
-	inno_ldh_v2_t *ldh = (inno_ldh_v2_t  *) ldh_hdr;
+	inno_ldh_v3_t *ldh = (inno_ldh_v3_t  *) ldh_hdr;
 
     if ((buf == NULL) || (ldh == NULL)) {
         return -1;
@@ -86,10 +76,10 @@ inno_unpack_ldh_header_v2(uint8_t    *buf,
 }
 
 int
-inno_vf2_queue_set_v2(uint8_t *buf,
+inno_vf2_queue_set_v3(uint8_t *buf,
                       uint8_t queue)
 {
-    inno_ldh_v2_t ldh;
+    inno_ldh_v3_t ldh;
 
     if (buf == NULL) {
         return -1;
@@ -97,8 +87,8 @@ inno_vf2_queue_set_v2(uint8_t *buf,
 
     unpack_ldh_fixed_format(buf, &ldh._u.ldh_fixed);
     if (ldh._u.ldh_fixed.vf_type_f == 2) {
-        buf[4] &= 0xf;
-        buf[4] |= (queue & 0xf) << 4;
+        buf[5] &= 0xf0;
+        buf[5] |= (queue & 0xf);
     }
     else {
         ipd_err("Unpack-Unsupported VF %d",
@@ -109,16 +99,16 @@ inno_vf2_queue_set_v2(uint8_t *buf,
     return 0;
 }
 
-uint32_t inno_get_ssp_v2(inno_ldh_t *ldh_hdr)
+uint32_t inno_get_ssp_v3(inno_ldh_t *ldh_hdr)
 {
-	inno_ldh_v2_t *ldh = (inno_ldh_v2_t  *) ldh_hdr;
+	inno_ldh_v3_t *ldh = (inno_ldh_v3_t  *) ldh_hdr;
 	return ldh->_u.vf0.ssp_f;
 }
 
 bool
-inno_debug_hdr_present_v2(inno_ldh_t *ldh_hdr)
+inno_debug_hdr_present_v3(inno_ldh_t *ldh_hdr)
 {
-	inno_ldh_v2_t *ldh = (inno_ldh_v2_t  *) ldh_hdr;
+	inno_ldh_v3_t *ldh = (inno_ldh_v3_t  *) ldh_hdr;
 	if (ldh->_u.vf0._rsvd_fixed_0_f == 1) {
 		return true;
 	}
@@ -132,28 +122,28 @@ inno_unpack_debug_header(uint8_t   *buf,
                          uint16_t  *lvni,
                          uint16_t  *intf)
 {
-    ipd_fields_v2_t ipdfld;
-    cfx_v2_t cmf;
+    ipd_fields_v3_t ipdfld;
+    cfx_v3_t cmf;
     uint32_t nh_hw_index = 0;
     int rc;
-    rc = cfx_v2_init(&cmf);
+    rc = cfx_v3_init(&cmf);
     if (rc != 0)
         ipd_err("cm init failed rc = %d",rc);
-    rc = cfx_v2_unpack(&cmf, buf);
+    rc = cfx_v3_unpack(&cmf, buf);
     if (rc != 0)
         ipd_err("cm unpack failed rc = %d",rc);
-    inno_unpack_cmhdr_v2(buf, &ipdfld);
+    inno_unpack_cmhdr_v3(buf, &ipdfld);
     *lvni = (uint16_t)ipdfld.vni;
     *intf = (uint16_t)ipdfld.l3iif;
 
     switch(ipdfld.e1){
         case 1:
         {
-            pf1_2_v2_t pf1_2;
-            rc = pf1_2_v2_init(&pf1_2);
+            pf1_2_v3_t pf1_2;
+            rc = pf1_2_v3_init(&pf1_2);
             if (rc != 0)
                 ipd_err("pf_1_2 init failed rc = %d",rc);
-            rc = pf1_2_v2_unpack(&pf1_2, buf);
+            rc = pf1_2_v3_unpack(&pf1_2, buf);
             if (rc != 0)
                 ipd_err("pf1_2 unpack failed rc = %d",rc);
             *intf = (uint16_t)pf1_2.ipd1_f1.value[0];
@@ -208,13 +198,11 @@ inno_unpack_debug_header(uint8_t   *buf,
 static int
 inno_unpack_ptp_ext_header(inno_device_t *idev,
                            inno_dma_alloc_t *dma,
-                          inno_ldh_v2_t *ldh,
+                          inno_ldh_v3_t *ldh,
                            uint8_t  *ext_info_hdrs,
                            uint32_t *ptp_info_hdr_size)
 {
-    struct ptp_header *ptp_hdr = NULL;
     uint8_t *buf;
-    uint8_t ptp_msg_type = 0;
     uint64_t idts1 = 0, idts2 = 0, temp = 0;
     cpu_ptp_control_t cpu_ptp_ctrl;
     uint32_t idts_diff = 0;
@@ -237,9 +225,6 @@ inno_unpack_ptp_ext_header(inno_device_t *idev,
     idts1 = __builtin_bswap64(temp);
 
     idts1 = idts1 & 0xffffffffffff;
-
-    ptp_hdr = (struct ptp_header *)(buf+PTP_SHIM_HDR_SIZE+ L2_IPV4_UDP_HDR_SIZE);
-    ptp_msg_type = ptp_hdr->tsmt & 0x0f;
 
     /* trigger timers snapshot */
     cpu_ptp_ctrl.data = 0;
@@ -266,27 +251,15 @@ inno_unpack_ptp_ext_header(inno_device_t *idev,
         idts_diff = NANOSEC_PER_SEC - idts1 + idts2;
     }
 
-    /* pdelay request packets use device timer and
-       other packets use both global and device timers */
-    if(ptp_msg_type == PTP_PDELAY_REQ)
-    {
-        ptp_info_hdr.ptp_timestamp_sec       = 0;
-        /* For PDelay_Req, T2 can be Device Time only because the difference (T3-T2)
-           is put into the Correction Field of the Pdelay_Resp message */
-        ptp_info_hdr.ptp_timestamp_nanosec   = (uint32_t)idts2;
-    }
-    else
-    {
-        igts_sec    = (((uint64_t)igts_sec_47_32) << 32) | igts_sec_31_0;
-        igts_nsec   = igts_nsec_31_0;
+    igts_sec = (((uint64_t)igts_sec_47_32) << 32) | igts_sec_31_0;
+    igts_nsec = igts_nsec_31_0;
 
-        if(igts_nsec >= idts_diff) {
-            ptp_info_hdr.ptp_timestamp_nanosec = igts_nsec - idts_diff;
-            ptp_info_hdr.ptp_timestamp_sec = igts_sec;
-        } else {
-            ptp_info_hdr.ptp_timestamp_nanosec = NANOSEC_PER_SEC - igts_nsec + idts_diff;
-            ptp_info_hdr.ptp_timestamp_sec = igts_sec - 1;
-        }
+    if(igts_nsec >= idts_diff) {
+        ptp_info_hdr.ptp_timestamp_nanosec = igts_nsec - idts_diff;
+        ptp_info_hdr.ptp_timestamp_sec = igts_sec;
+    } else {
+        ptp_info_hdr.ptp_timestamp_nanosec = NANOSEC_PER_SEC - igts_nsec + idts_diff;
+        ptp_info_hdr.ptp_timestamp_sec = igts_sec - 1;
     }
 
     *ptp_info_hdr_size = sizeof(inno_ptp_info_header_t);
@@ -299,13 +272,13 @@ inno_unpack_ptp_ext_header(inno_device_t *idev,
 }
 
 void
-inno_populate_inno_hdr_v2(inno_ldh_t         *ldh_hdr,
+inno_populate_inno_hdr_v3(inno_ldh_t         *ldh_hdr,
                           inno_info_header_t *ih,
 						  inno_dma_alloc_t  *dma,
                           uint8_t           ext_hdr_type,
                           uint8_t           ext_hdrs_size)
 {
-	inno_ldh_v2_t *ldh = (inno_ldh_v2_t  *) ldh_hdr;
+	inno_ldh_v3_t *ldh = (inno_ldh_v3_t  *) ldh_hdr;
 
     switch (ldh->_u.ldh_fixed.vf_type_f){
     case 0:
@@ -400,7 +373,7 @@ inno_populate_inno_hdr_v2(inno_ldh_t         *ldh_hdr,
  * return status
  */
 int
-inno_unpack_ext_hdrs_v2(inno_device_t *idev,
+inno_unpack_ext_hdrs_v3(inno_device_t *idev,
                         inno_dma_alloc_t *dma,
                         inno_ldh_t *ldh_hdr,
                         uint32_t *ext_hdrs_size,
@@ -410,7 +383,7 @@ inno_unpack_ext_hdrs_v2(inno_device_t *idev,
                         uint32_t *sp)
 {
 	uint8_t  *curr_info_hdr = ext_info_hdrs;
-	inno_ldh_v2_t *ldh = (inno_ldh_v2_t  *) ldh_hdr;
+	inno_ldh_v3_t *ldh = (inno_ldh_v3_t  *) ldh_hdr;
 
 	/* Check if packet is encapped with PTP shim header */
 	/* For now, only checking if the packet is received on PTP-event-messaging queue, as all

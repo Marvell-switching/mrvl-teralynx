@@ -58,14 +58,14 @@ typedef struct bitset_v2_s
     do {                                            \
         uint32_t i, j;                              \
         bitset_v2_t *fn = &_fldn;                    \
-        for (i=0; i < fn->bit_width; i++) {         \
-            j = i % 32;                             \
+        for (i=fn->bit_width; i>0; i--) {           \
+            j = (i-1) % 32;                             \
             if ((_bid) > 7) {                       \
                 if (_msb) {(_wid)++;}               \
                 else {(_wid)--;}                    \
                 (_bid)=0;                           \
             }                                       \
-            (_bm)[(_wid)] |= ((fn->value[i/32] & (1 << j)) >> j) << (_bid); \
+            (_bm)[(_wid)] |= ((fn->value[i/32] & (1 << j)) >> j) << (7-_bid); \
             (_bid)++;                               \
         }                                           \
     } while (0)
@@ -87,7 +87,7 @@ typedef struct bitset_v2_s
                 else {(_wid)--;}                     \
                 j = 0;                               \
             }                                        \
-            fn->value[i/32] |= (uint32_t) ((bm[_wid] & (1 << j)) >> j) << shift; \
+            fn->value[i/32] |= (uint32_t) ((bm[_wid] & (1 << (7-j))) >> (7-j)) << (fn->bit_width - 1 - shift); \
             j++;                                     \
             (_bid)++;                                \
         }                                            \

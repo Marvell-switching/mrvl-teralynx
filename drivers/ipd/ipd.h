@@ -32,6 +32,7 @@ disclaimer.
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <net/genetlink.h>
+#include <linux/cdev.h>
 
 /** @file ipd.h
  *
@@ -43,6 +44,7 @@ disclaimer.
 #include "inno_debug.h"
 
 #define BAR_0    0
+#define BAR_2    2
 
 #define PAGE(addr)      (((uint64_t)(addr)) & ~(PAGE_SIZE - 1))
 #define OFFSET(addr)    (((uint64_t)(addr)) & (PAGE_SIZE - 1))
@@ -51,8 +53,8 @@ disclaimer.
      ~(idev->cache_align - 1))
 
 /* Macros to find the H/W registers and VM addrs of H/W features */
-#define REG32(reg)    (*((volatile uint32_t *)(idev->bar0 + (reg))))
-#define REG64(reg)    (*((volatile uint64_t *)(idev->bar0 + (reg))))
+#define REG32(reg)    (*((volatile uint32_t *)(idev->bar + (reg))))
+#define REG64(reg)    (*((volatile uint64_t *)(idev->bar + (reg))))
 #define UPPER32(val)  ((uint32_t) ((val) >> 32))
 #define LOWER32(val)  ((uint32_t) ((val) & 0x00000000ffffffff))
 
@@ -67,9 +69,9 @@ disclaimer.
 #define INNO_PCI_VENDOR_ID             0x1d98
 #define MRVL_PCI_VENDOR_ID             0x11ab
 #define INNO_TERALYNX_PCI_DEVICE_ID    0x1b58
-#define INNO_K2_PCI_DEVICE_ID          0x1b59
 #define MRVL_TL10_PCI_DEVICE_ID        0x6000
-
+#define MRVL_TL12_PCI_DEVICE_ID        0x6401
+#define MRVL_T100_PCI_DEVICE_ID        0x6800
 #define INNO_DMA_MASK                  64
 #define INNO_TERALYNX_PCI_DEVICE_REV_ID_A0    0x0
 #define INNO_TERALYNX_PCI_DEVICE_REV_ID_B0    0x10
@@ -249,11 +251,22 @@ typedef struct inno_netlink_s {
     inno_gen_netlink_t  *gnetlink;
 } inno_netlink_t;
 
+typedef struct {
+    int egress_sflow_mode;
+} inno_sflow_params_info_t;
+
 /** @brief Innovium device master struct
  *
  */
 typedef struct inno_device {
     struct pci_dev          *pdev;                 /** PCI device */
+    struct cdev             cdev;
+    struct device           *dev_node;
+    int                     id;
+    unsigned int            dev_opened;
+    unsigned int            dev_opened_before;
+    int                     hw_init_done;
+    int                     user_cfg_done;
     struct net_device       *ndev;                 /** Network device */
 
     struct net_device       *sysport_devs[NUM_SYSPORTS]; /** Network devices */
@@ -272,6 +285,12 @@ typedef struct inno_device {
     void __iomem            *bar0;                 /** BAR 0 kaddr */
     void __iomem            *bar0_ba;              /** BAR0 address */
     uint32_t                bar0_size;             /** Size of BAR0 */
+
+    void __iomem            *bar2;                 /** BAR 2 kaddr */
+    void __iomem            *bar2_ba;              /** BAR2 address */
+    uint32_t                bar2_size;             /** Size of BAR2 */
+
+    void __iomem            *bar;                  /** BAR kaddr. Points to the BAR with PCI regs */
 
     /* Rings */
     inno_ring_t             tx_ring[NUM_TX_RINGS]; /** TX rings */
@@ -343,6 +362,7 @@ typedef struct inno_device {
     inno_intr_regs_t        inno_intr_regs;        /** Struct for INTR_* registers */
 
     inno_params_info_t      inno_params_info;      /** Struct for inno device parameters */
+    inno_sflow_params_info_t inno_sflow_params_info; /** Struct for sflow parameters */
 } inno_device_t;
 
 #endif /* __IPD_H__ */

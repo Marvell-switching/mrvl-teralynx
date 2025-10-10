@@ -41,6 +41,8 @@ disclaimer.
 #include <linux/swab.h>
 #include <linux/kthread.h>
 #include <linux/jiffies.h>
+#include <linux/slab.h>
+#include <linux/idr.h>
 
 #include "pci_common_ipd.h"
 #include "ipd.h"
@@ -49,8 +51,9 @@ disclaimer.
 #include "inno_enet.h"
 #include "ipd_version.h"
 
+#define IPD_DRIVER_NAME	"ipd"
+
 /* Major number for IPD */
-#define INNO_MAJOR    101
 
 /* MSIX Vector */
 #define INNO_MSIX_NUM_VECTORS    32
@@ -61,6 +64,10 @@ disclaimer.
 #define INNO_TERALYNX_CHIP_DBG_HDR_LEN 32
 #define INNO_TL10_CHIP_HDR_LEN          20
 #define INNO_TL10_CHIP_DBG_HDR_LEN      40
+#define INNO_TL12_CHIP_HDR_LEN          20
+#define INNO_TL12_CHIP_DBG_HDR_LEN      40
+#define INNO_T100_CHIP_HDR_LEN          20
+#define INNO_T100_CHIP_DBG_HDR_LEN      40
 
 
 #define RING_STS_RETRY_CNT 1000
@@ -74,10 +81,6 @@ module_param_named(boottype, ipd_boottype, uint, 0644);
 MODULE_PARM_DESC(boottype, "boot type(0-1)");
 
 
-static unsigned int inno_ipd_opened = 0;
-static unsigned int inno_ipd_opened_before = 0;
-static int ipd_hw_init_done = 0;
-static int ipd_user_cfg_done = 0;
 
 extern void inno_sysfs_init(inno_device_t  *idev, int max_device);
 extern void inno_sysfs_deinit(void);
@@ -112,6 +115,9 @@ static int inno_intr_deinit(inno_device_t *idev);
 static int inno_hw_init (inno_device_t *idev);
 static int inno_cleanup_resources(inno_device_t *idev);
 static int inno_override_flow_control(inno_device_t *idev, int enable);
+static int inno_open(struct inode *inode, struct file  *fp);
+static int inno_close(struct inode *inode, struct file  *fp);
+static int inno_mmap(struct file *fp, struct vm_area_struct *vma);
 /* #define EVT_THREAD 1
 */
 
@@ -143,6 +149,8 @@ static struct pci_device_id inno_ids[] =
 {
     { PCI_DEVICE(INNO_PCI_VENDOR_ID, INNO_TERALYNX_PCI_DEVICE_ID) },
     { PCI_DEVICE(MRVL_PCI_VENDOR_ID, MRVL_TL10_PCI_DEVICE_ID) },
+    { PCI_DEVICE(MRVL_PCI_VENDOR_ID, MRVL_TL12_PCI_DEVICE_ID) },
+    { PCI_DEVICE(MRVL_PCI_VENDOR_ID, MRVL_T100_PCI_DEVICE_ID) },
     {                             0,                              },
 };
 
@@ -173,9 +181,10 @@ static uint32_t inno_num_devices = 0;
 static inno_device_t inno_instances[MAX_INNO_DEVICES];
 
 /* cdev for IPD */
-static dev_t       inno_major_dev = MKDEV(INNO_MAJOR, 0);
-static struct cdev inno_cdev;
+static dev_t       inno_major_dev;
 static struct class *inno_cl;
+static DEFINE_IDR(ipd_idr);
+static DEFINE_MUTEX(ipd_idr_lock);
 
 /* Fixed offset macros for POOL allocations */
 #define POOL_TX_IDX_OFFSET(num)    (0 + ((num) * CACHE_ALIGN(4)))
@@ -227,6 +236,17 @@ static char *inno_intrtype_status2str(int status)
         default:
             return "Unknown";
     }
+}
+
+static phys_addr_t
+inno_get_phys_addr(inno_device_t *idev, volatile void *va, dma_addr_t ba)
+{
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+    return (device_iommu_mapped(&idev->pdev->dev) ? virt_to_phys(va) : ba);
+#else
+    return virt_to_phys(va);
+#endif
 }
 
 void
@@ -1193,8 +1213,8 @@ fill:
     /* Fill in the return data */
     ioctl->ring       = (off_t)ring->desc_ba;
     ioctl->wb         = (off_t)ring->wb_ba;
-    ioctl->ring_pa       = (off_t)virt_to_phys(ring->rx_desc);
-    ioctl->wb_pa         = (off_t)virt_to_phys(ring->rx_wb);
+    ioctl->ring_pa    = inno_get_phys_addr(idev, ring->rx_desc, ring->desc_ba);
+    ioctl->wb_pa      = inno_get_phys_addr(idev, ring->rx_wb, ring->wb_ba);
     ioctl->idx_offset = ring->idx_offset;
     ioctl->cidx       = ring->cidx;
     ioctl->pidx       = ring->pidx;
@@ -1403,7 +1423,7 @@ inno_alloc_hrr(inno_device_t    *idev,
 
     /* Fill in the return data */
     ioctl->hrr             = (off_t)idev->hrr.ba;
-    ioctl->hrr_pa          = (off_t)virt_to_phys(idev->hrr.vmaddr);
+    ioctl->hrr_pa          = inno_get_phys_addr(idev, idev->hrr.vmaddr, idev->hrr.ba);
     ioctl->hrr_pidx_offset = POOL_HRR_OFFSET;
     ioctl->size            = idev->hrr.count * idev->hrr.size;
 
@@ -1514,7 +1534,7 @@ inno_pic_st_alloc(inno_device_t      *idev,
 
     /* Send data back to ioctl caller */
     ioctl->wb_ba = pic_st->wb_ba;
-    ioctl->wb_pa = (off_t)virt_to_phys(pic_st->wb_vmaddr);
+    ioctl->wb_pa = inno_get_phys_addr(idev, pic_st->wb_vmaddr, pic_st->wb_ba);
 
     ipd_debug("PIC Status chain allocated\n");
 
@@ -1620,25 +1640,35 @@ inno_hi_watermark_enable(inno_device_t *idev)
     hi_watermark_imsg_0_t hi_wmark_imsg;
 
 
-    if(idev->device_id == INNO_TERALYNX_PCI_DEVICE_ID ||
-       idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
-        memset(&hi_wmark_imsg, 0, sizeof(hi_wmark_imsg));
-        hi_wmark_imsg.tl_flds.en_f = 1;
+    memset(&hi_wmark_imsg, 0, sizeof(hi_wmark_imsg));
+    hi_wmark_imsg.tl_flds.en_f = 1;
+
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#endif
+    switch(idev->device_id) {
+    case MRVL_TL10_PCI_DEVICE_ID:
+    case MRVL_T100_PCI_DEVICE_ID:
+        REG32(HI_WATERMARK_IMSG_6) = hi_wmark_imsg.data;
+        REG32(HI_WATERMARK_IMSG_7) = hi_wmark_imsg.data;
+    case INNO_TERALYNX_PCI_DEVICE_ID:
+        REG32(HI_WATERMARK_IMSG_4) = hi_wmark_imsg.data;
+        REG32(HI_WATERMARK_IMSG_5) = hi_wmark_imsg.data;
+    case MRVL_TL12_PCI_DEVICE_ID:
         REG32(HI_WATERMARK_IMSG_0) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_1) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_2) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_3) = hi_wmark_imsg.data;
-        REG32(HI_WATERMARK_IMSG_4) = hi_wmark_imsg.data;
-        REG32(HI_WATERMARK_IMSG_5) = hi_wmark_imsg.data;
-
-        if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
-            REG32(HI_WATERMARK_IMSG_6) = hi_wmark_imsg.data;
-            REG32(HI_WATERMARK_IMSG_7) = hi_wmark_imsg.data;
-        }
-    } else {
-        ipd_err("Unknown innovium device in inno_hi_watermark_clear_reset\n");
+        break;
+    default:
+        ipd_err("Unknown innovium device in inno_hi_watermark_enable\n");
         return -ENODEV;
     }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#pragma GCC diagnostic pop
+#endif
 
     return 0;
 }
@@ -1650,42 +1680,139 @@ inno_hi_watermark_clear_reset(inno_device_t *idev, int log_err)
     int                   ret = 0;
 
 
-    if(idev->device_id == INNO_TERALYNX_PCI_DEVICE_ID ||
-       idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
-        /* Set the clear */
-        memset(&hi_wmark_imsg, 0, sizeof(hi_wmark_imsg));
-        /* Keep the enable flag on */
-        hi_wmark_imsg.tl_flds.en_f = 1;
-        hi_wmark_imsg.tl_flds.clr_f = 1;
+    /* Set the clear */
+    memset(&hi_wmark_imsg, 0, sizeof(hi_wmark_imsg));
+    /* Keep the enable flag on */
+    hi_wmark_imsg.tl_flds.en_f = 1;
+    hi_wmark_imsg.tl_flds.clr_f = 1;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#endif
+    switch(idev->device_id) {
+    case MRVL_TL10_PCI_DEVICE_ID:
+    case MRVL_T100_PCI_DEVICE_ID:
+        REG32(HI_WATERMARK_IMSG_6) = hi_wmark_imsg.data;
+        REG32(HI_WATERMARK_IMSG_7) = hi_wmark_imsg.data;
+    case INNO_TERALYNX_PCI_DEVICE_ID:
+        REG32(HI_WATERMARK_IMSG_4) = hi_wmark_imsg.data;
+        REG32(HI_WATERMARK_IMSG_5) = hi_wmark_imsg.data;
+    case MRVL_TL12_PCI_DEVICE_ID:
         REG32(HI_WATERMARK_IMSG_0) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_1) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_2) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_3) = hi_wmark_imsg.data;
+        break;
+    default:
+        ipd_err("Unknown innovium device in inno_hi_watermark_clear_reset\n");
+        return -ENODEV;
+    }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#pragma GCC diagnostic pop
+#endif
+
+    /* Reset the clear */
+    memset(&hi_wmark_imsg, 0, sizeof(hi_wmark_imsg));
+    /* Keep the enable flag on */
+    hi_wmark_imsg.tl_flds.en_f = 1;
+    hi_wmark_imsg.tl_flds.clr_f = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#endif
+    switch(idev->device_id) {
+    case MRVL_TL10_PCI_DEVICE_ID:
+    case MRVL_T100_PCI_DEVICE_ID:
+        REG32(HI_WATERMARK_IMSG_6) = hi_wmark_imsg.data;
+        REG32(HI_WATERMARK_IMSG_7) = hi_wmark_imsg.data;
+    case INNO_TERALYNX_PCI_DEVICE_ID:
         REG32(HI_WATERMARK_IMSG_4) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_5) = hi_wmark_imsg.data;
-
-        if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
-            REG32(HI_WATERMARK_IMSG_6) = hi_wmark_imsg.data;
-            REG32(HI_WATERMARK_IMSG_7) = hi_wmark_imsg.data;
-        }
-
-        /* Reset the clear */
-        memset(&hi_wmark_imsg, 0, sizeof(hi_wmark_imsg));
-        /* Keep the enable flag on */
-        hi_wmark_imsg.tl_flds.en_f = 1;
-        hi_wmark_imsg.tl_flds.clr_f = 0;
+    case MRVL_TL12_PCI_DEVICE_ID:
         REG32(HI_WATERMARK_IMSG_0) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_1) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_2) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_3) = hi_wmark_imsg.data;
-        REG32(HI_WATERMARK_IMSG_4) = hi_wmark_imsg.data;
-        REG32(HI_WATERMARK_IMSG_5) = hi_wmark_imsg.data;
+        break;
+    default:
+        ipd_err("Unknown innovium device in inno_hi_watermark_clear_reset\n");
+        return -ENODEV;
+    }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#pragma GCC diagnostic pop
+#endif
 
-        if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
-            REG32(HI_WATERMARK_IMSG_6) = hi_wmark_imsg.data;
-            REG32(HI_WATERMARK_IMSG_7) = hi_wmark_imsg.data;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#endif
+    switch(idev->device_id) {
+    case MRVL_TL10_PCI_DEVICE_ID:
+    case MRVL_T100_PCI_DEVICE_ID:
+        hi_wmark_imsg.data = REG32(HI_WATERMARK_IMSG_6);
+        if (hi_wmark_imsg.tl_flds.lvl_f != 0) {
+            if (log_err) {
+                ipd_err("HI_WATERMARK_IMSG_6 is 0x%x, lvl_f: %d\n",
+                        hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
+                ret = -EBUSY;
+            } else {
+                ipd_info("HI_WATERMARK_IMSG_6 is 0x%x, lvl_f: %d\n",
+                        hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
+                return -EBUSY;
+            }
+        } else {
+            ipd_info("HI_WATERMARK_IMSG_6 is 0x%x, lvl_f: %d\n",
+                    hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
         }
-
+        hi_wmark_imsg.data = REG32(HI_WATERMARK_IMSG_7);
+        if (hi_wmark_imsg.tl_flds.lvl_f != 0) {
+            if (log_err) {
+                ipd_err("HI_WATERMARK_IMSG_7 is 0x%x, lvl_f: %d\n",
+                        hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
+                ret = -EBUSY;
+            } else {
+                ipd_info("HI_WATERMARK_IMSG_7 is 0x%x, lvl_f: %d\n",
+                        hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
+                return -EBUSY;
+            }
+        } else {
+            ipd_info("HI_WATERMARK_IMSG_7 is 0x%x, lvl_f: %d\n",
+                    hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
+        }
+    case INNO_TERALYNX_PCI_DEVICE_ID:
+        hi_wmark_imsg.data = REG32(HI_WATERMARK_IMSG_4);
+        if (hi_wmark_imsg.tl_flds.lvl_f != 0) {
+            if (log_err) {
+                ipd_err("HI_WATERMARK_IMSG_4 is 0x%x, lvl_f: %d\n",
+                         hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
+                ret = -EBUSY;
+            } else {
+                ipd_info("HI_WATERMARK_IMSG_4 is 0x%x, lvl_f: %d\n",
+                         hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
+                return -EBUSY;
+            }
+        } else {
+            ipd_info("HI_WATERMARK_IMSG_4 is 0x%x, lvl_f: %d\n",
+                     hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
+        }
+        hi_wmark_imsg.data = REG32(HI_WATERMARK_IMSG_5);
+        if (hi_wmark_imsg.tl_flds.lvl_f != 0) {
+            if (log_err) {
+                ipd_err("HI_WATERMARK_IMSG_5 is 0x%x, lvl_f: %d\n",
+                         hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
+                ret = -EBUSY;
+            } else {
+                ipd_info("HI_WATERMARK_IMSG_5 is 0x%x, lvl_f: %d\n",
+                         hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
+                return -EBUSY;
+            }
+        } else {
+            ipd_info("HI_WATERMARK_IMSG_5 is 0x%x, lvl_f: %d\n",
+                     hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
+        }
+    case MRVL_TL12_PCI_DEVICE_ID:
         /* Now read the watermarks */
         hi_wmark_imsg.data = REG32(HI_WATERMARK_IMSG_0);
         if (hi_wmark_imsg.tl_flds.lvl_f != 0) {
@@ -1747,73 +1874,14 @@ inno_hi_watermark_clear_reset(inno_device_t *idev, int log_err)
             ipd_info("HI_WATERMARK_IMSG_3 is 0x%x, lvl_f: %d\n",
                      hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
         }
-        hi_wmark_imsg.data = REG32(HI_WATERMARK_IMSG_4);
-        if (hi_wmark_imsg.tl_flds.lvl_f != 0) {
-            if (log_err) {
-                ipd_err("HI_WATERMARK_IMSG_4 is 0x%x, lvl_f: %d\n",
-                         hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-                ret = -EBUSY;
-            } else {
-                ipd_info("HI_WATERMARK_IMSG_4 is 0x%x, lvl_f: %d\n",
-                         hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-                return -EBUSY;
-            }
-        } else {
-            ipd_info("HI_WATERMARK_IMSG_4 is 0x%x, lvl_f: %d\n",
-                     hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-        }
-        hi_wmark_imsg.data = REG32(HI_WATERMARK_IMSG_5);
-        if (hi_wmark_imsg.tl_flds.lvl_f != 0) {
-            if (log_err) {
-                ipd_err("HI_WATERMARK_IMSG_5 is 0x%x, lvl_f: %d\n",
-                         hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-                ret = -EBUSY;
-            } else {
-                ipd_info("HI_WATERMARK_IMSG_5 is 0x%x, lvl_f: %d\n",
-                         hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-                return -EBUSY;
-            }
-        } else {
-            ipd_info("HI_WATERMARK_IMSG_5 is 0x%x, lvl_f: %d\n",
-                     hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-        }
-
-        if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
-            hi_wmark_imsg.data = REG32(HI_WATERMARK_IMSG_6);
-            if (hi_wmark_imsg.tl_flds.lvl_f != 0) {
-                if (log_err) {
-                    ipd_err("HI_WATERMARK_IMSG_6 is 0x%x, lvl_f: %d\n",
-                            hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-                    ret = -EBUSY;
-                } else {
-                    ipd_info("HI_WATERMARK_IMSG_6 is 0x%x, lvl_f: %d\n",
-                            hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-                    return -EBUSY;
-                }
-            } else {
-                ipd_info("HI_WATERMARK_IMSG_6 is 0x%x, lvl_f: %d\n",
-                        hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-            }
-            hi_wmark_imsg.data = REG32(HI_WATERMARK_IMSG_7);
-            if (hi_wmark_imsg.tl_flds.lvl_f != 0) {
-                if (log_err) {
-                    ipd_err("HI_WATERMARK_IMSG_7 is 0x%x, lvl_f: %d\n",
-                            hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-                    ret = -EBUSY;
-                } else {
-                    ipd_info("HI_WATERMARK_IMSG_7 is 0x%x, lvl_f: %d\n",
-                            hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-                    return -EBUSY;
-                }
-            } else {
-                ipd_info("HI_WATERMARK_IMSG_7 is 0x%x, lvl_f: %d\n",
-                        hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
-            }
-        }
-    } else {
+    break;
+    default:
         ipd_err("Unknown innovium device in inno_hi_watermark_clear_reset\n");
         return -ENODEV;
     }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#pragma GCC diagnostic pop
+#endif
 
     return ret;
 }
@@ -1970,11 +2038,11 @@ fill:
     /* read the device's learn CIDX */
     learn->cidx.data = REG32(RXE_DMA_MSG_DESC_CIDX_0);
     /* Fill in the return data */
-    ioctl->learn_ba          = (off_t)idev->learn.ba;
-    ioctl->learn_pa          = (off_t)virt_to_phys(learn->vmaddr);
+    ioctl->learn_ba          = (off_t)learn->orig_ba;
+    ioctl->learn_pa          = inno_get_phys_addr(idev, learn->vmaddr, learn->orig_ba);
     ioctl->pidx_offset       = learn->pidx_offset;
     ioctl->wb_ba             = learn->wb_ba;
-    ioctl->wb_pa             = (off_t)virt_to_phys(learn->wb_vmaddr);
+    ioctl->wb_pa             = inno_get_phys_addr(idev, learn->wb_vmaddr, learn->wb_ba);
     ioctl->pidx              = learn->pidx.data;
     ioctl->cidx              = learn->cidx.data;
 
@@ -2006,7 +2074,7 @@ inno_free_learn(inno_device_t *idev)
 
     /* Instruct the IFC not to send any more learns */
     REG32(LEARN_MSG) = 0x0;
-    if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
+        if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
         /* A new register was added in TL10 which
          * controls the flow of learns from IFC to
          * CPU subdomain for IBs 4-7
@@ -2481,7 +2549,7 @@ inno_ring_page_alloc(inno_device_t *idev,
         dma_alloc_p->vmaddr = page_address(dma_alloc_p->page);
 
         ioctl_ring_page_alloc->buf_ba = dma_alloc_p->dma_addr;
-        ioctl_ring_page_alloc->buf_pa = (off_t)virt_to_phys(dma_alloc_p->vmaddr);
+        ioctl_ring_page_alloc->buf_pa = inno_get_phys_addr(idev, dma_alloc_p->vmaddr, dma_alloc_p->dma_addr);
         smp_mb();
         ring->rx_desc[idx].hsn_upper = (uint32_t)(dma_alloc_p->dma_addr >> 32);
         ring->rx_desc[idx].hsn_lower = (uint32_t)(dma_alloc_p->dma_addr & 0x00000000ffffffff);
@@ -2527,7 +2595,7 @@ inno_ring_page_alloc(inno_device_t *idev,
         dma_alloc_p->vmaddr = page_address(dma_alloc_p->page);
 
         ioctl_ring_page_alloc->buf_ba = dma_alloc_p->dma_addr;
-        ioctl_ring_page_alloc->buf_pa = (off_t)virt_to_phys(dma_alloc_p->vmaddr);
+        ioctl_ring_page_alloc->buf_pa = inno_get_phys_addr(idev, dma_alloc_p->vmaddr, dma_alloc_p->dma_addr);
     }
 
     return 0;
@@ -3025,7 +3093,6 @@ inno_flush_recover_dma(inno_device_t *idev,
 static void
 inno_reset(inno_device_t *idev)
 {
-
     ipd_trace("Inno reset\n");
 
     if (idev == NULL) {
@@ -3034,9 +3101,9 @@ inno_reset(inno_device_t *idev)
 
     REG32(SYNC_MODE) = 0;                /* Stop sync WB */
     /* cleanup only if hw_init_done is true */
-    if (ipd_hw_init_done == 1) {
-        inno_cleanup_resources(idev);
-        inno_ipd_opened_before = 0;
+    if (idev->hw_init_done == 1) {
+       inno_cleanup_resources(idev);
+       idev->dev_opened_before = 0;
     }
 
     /* Release the coherent allocs */
@@ -3082,11 +3149,18 @@ inno_reset(inno_device_t *idev)
         idev->bar0 = 0;
     }
 
+    if (idev->bar2) {
+        /* Release base addr mappings */
+        iounmap(idev->bar2);
+        idev->bar2 = 0;
+    }
+
     pci_disable_device(idev->pdev);
     pci_release_regions(idev->pdev);
     pci_set_drvdata(idev->pdev, NULL);
     idev->pdev = NULL;
 }
+
 
 /** @brief File ioctl function
  *
@@ -3107,7 +3181,6 @@ inno_ioctl(struct file   *f,
 {
     inno_device_t                 *idev;
     uint32_t                      reg_ops[2];
-    int                           i;
     inno_ioctl_nodes_t            ioctl_nodes;
     inno_ioctl_query_t            ioctl_query;
     inno_ioctl_rupt_wait_t        ioctl_rupt_wait;
@@ -3129,6 +3202,7 @@ inno_ioctl(struct file   *f,
     inno_ioctl_flush_pkt_t        ioctl_flush_pkt;
     inno_ioctl_cfg_init_done_t    ioctl_cfg_init_done;
     inno_ioctl_flow_init_t        ioctl_flow_init;
+    inno_ioctl_sflow_params_t     ioctl_sflow_params;
     int ret = 0;
 
     /* Extract device */
@@ -3147,15 +3221,12 @@ inno_ioctl(struct file   *f,
             return -EINVAL;
         }
 
-        ioctl_nodes.num_nodes = inno_num_devices;
-        for (i = 0; i < inno_num_devices; i++) {
-            ioctl_nodes.node_info[i].vendor_id = inno_instances[i].vendor_id;
-            ioctl_nodes.node_info[i].device_id = inno_instances[i].device_id;
-            ioctl_nodes.node_info[i].rev_id = inno_instances[i].rev_id;
-            ioctl_nodes.node_info[i].bus_num = inno_instances[i].bus_num;
-            ioctl_nodes.node_info[i].dev_num = inno_instances[i].dev_num;
-            ioctl_nodes.node_info[i].fn_num = inno_instances[i].fn_num;
-        }
+        ioctl_nodes.node_info[0].vendor_id = idev->vendor_id;
+        ioctl_nodes.node_info[0].device_id = idev->device_id;
+        ioctl_nodes.node_info[0].rev_id = idev->rev_id;
+        ioctl_nodes.node_info[0].bus_num = idev->bus_num;
+        ioctl_nodes.node_info[0].dev_num = idev->dev_num;
+        ioctl_nodes.node_info[0].fn_num = idev->fn_num;
 
         if (copy_to_user((inno_ioctl_nodes_t *)arg, &ioctl_nodes,
                          sizeof(inno_ioctl_nodes_t))) {
@@ -3206,10 +3277,22 @@ inno_ioctl(struct file   *f,
         ioctl_query.bus_num          = idev->bus_num;
         ioctl_query.dev_num          = idev->dev_num;
         ioctl_query.fn_num           = idev->fn_num;
-        ioctl_query.bar0             = (off_t)idev->bar0_ba;
-        ioctl_query.bar0_size        = idev->bar0_size;
+        /* IFCS relies on the the bar0 address to map the registers
+         * to user space via mmap. For now, just override the bar0
+         * variable here to minimize the changes in IFCS
+         */
+        if ((idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
+            (idev->device_id == MRVL_T100_PCI_DEVICE_ID)) {
+            ioctl_query.bar0             = (off_t)idev->bar0_ba;
+            ioctl_query.bar0_size        = idev->bar0_size;
+            ioctl_query.bar2             = (off_t)idev->bar2_ba;
+            ioctl_query.bar2_size        = idev->bar2_size;
+        } else {
+            ioctl_query.bar0             = (off_t)idev->bar0_ba;
+            ioctl_query.bar0_size        = idev->bar0_size;
+        }
         ioctl_query.pool_baddr       = (off_t)idev->pool_ba;
-        ioctl_query.pool_paddr       = (off_t)virt_to_phys(idev->pool);
+        ioctl_query.pool_paddr       = inno_get_phys_addr(idev, idev->pool, idev->pool_ba);
         ioctl_query.pool_size        = POOL_SIZE;
         ioctl_query.sync_blk_offset  = POOL_IAC_BLK_OFFSET;
         ioctl_query.sync_blk_size    = 4096;
@@ -3855,7 +3938,7 @@ inno_ioctl(struct file   *f,
                            sizeof(inno_ioctl_cfg_init_done_t))) {
             return -EACCES;
         }
-        ioctl_cfg_init_done.value = ipd_user_cfg_done;
+        ioctl_cfg_init_done.value = idev->user_cfg_done;
 
         if (copy_to_user((inno_ioctl_cfg_init_done_t *)arg, &ioctl_cfg_init_done,
                          sizeof(inno_ioctl_cfg_init_done_t))) {
@@ -3864,11 +3947,11 @@ inno_ioctl(struct file   *f,
         break;
 
     case _IOC_NR(IPD_USER_CONFIG_DONE):
-        ipd_user_cfg_done = 1;
+        idev->user_cfg_done = 1;
         break;
 
     case _IOC_NR(IPD_USER_CONFIG_CLEARED):
-        ipd_user_cfg_done = 0;
+        idev->user_cfg_done = 0;
         break;
 
     case _IOC_NR(IPD_OVERRIDE_FLOW_CONTROL):
@@ -3887,6 +3970,16 @@ inno_ioctl(struct file   *f,
         if (ret) {
             return ret;
         }
+        break;
+
+    case _IOC_NR(IPD_SFLOW_SET_PARAMS):
+        if (copy_from_user(&ioctl_sflow_params, (inno_ioctl_sflow_params_t *)arg,
+                           sizeof(inno_ioctl_sflow_params_t))) {
+            return -EACCES;
+        }
+
+        idev->inno_sflow_params_info.egress_sflow_mode = ioctl_sflow_params.egress_sflow_mode;
+        ipd_debug("egress sflow mode is %d\n", ioctl_sflow_params.egress_sflow_mode);
         break;
 
     default:
@@ -3911,7 +4004,6 @@ inno_ioctl(struct file   *f,
 #define RUPT_CLEAR(word, suffix)             \
     RUPT_WORD(word) &=  ~(1 << INTR_TRIG_OFFSET_ ## word ## suffix)
 
-
 /** @brief Generic fast interrupt handler
  *
  *  @return ERRNO
@@ -3924,68 +4016,48 @@ inno_rupt_handler(int  irq, void *dev_id)
     int                 i, j;
     uint32_t            cur_rupts[RUPT_MASK_WORDS_MAX];
 
-    /* Copy the interrupts from the WB */
-    memcpy(cur_rupts, idev->pool + POOL_RUPT_OFFSET, rupt_mask_words * 4);
+    /* Copy the interrupts from the WB or from the cause register if INTx is enabled */
+    if (idev->intr_type & INNO_INTR_INTX_ENABLED) {
+        bool    trig = false;
 
-    spin_lock_irqsave(&idev->rupt_lock, flags);
-    idev->inno_stats.inno_rupt_stats.num_int[0]++;
-    spin_unlock_irqrestore(&idev->rupt_lock, flags);
-
-    /* See which vectors need a kick */
-    for (i = 0; i < NUM_MSIX_VECS; i++) {
         spin_lock_irqsave(&idev->rupt_lock, flags);
         for (j = 0; j < rupt_mask_words; j++) {
-            REG32(idev->inno_intr_regs.intr_inmc + j * 4) = idev->rupts[i].mask[j];
-            if (idev->rupts[i].flag == 0) {
-                /* Need to kick this thread */
-                idev->rupts[i].flag = 1;
-                idev->inno_stats.inno_rupt_stats.num_int[i]++;
-                wake_up_interruptible(&idev->rupts[i].wait_q);
+            cur_rupts[j] = REG32(idev->inno_intr_regs.intr_incr + j * 4);
+            if (!trig && cur_rupts[j]) {
+                trig = true;
             }
         }
-        napi_schedule(&idev->napi);
         spin_unlock_irqrestore(&idev->rupt_lock, flags);
+        /* Is it inno device interrupt? if not then return a proper error code (None) */
+        if (!trig) {
+            return IRQ_NONE;
+        }
+    } else {
+        memcpy(cur_rupts, idev->pool + POOL_RUPT_OFFSET, rupt_mask_words * 4);
     }
 
-    return IRQ_HANDLED;
-}
-
-/** @brief Generic fast interrupt handler
- *
- *  @return ERRNO
- */
-static irqreturn_t
-_inno_rupt_handler(int  irq, void *dev_id)
-{
-    inno_device_t       *idev = dev_id;
-    unsigned long       flags;
-    int                 i, j;
-    uint32_t            cur_rupts[RUPT_MASK_WORDS_MAX];
-
-    /* Copy the interrupts from the WB */
-    memcpy(cur_rupts, idev->pool + POOL_RUPT_OFFSET, rupt_mask_words * 4);
-
+    spin_lock_irqsave(&idev->rupt_lock, flags);
     /* See which vectors need a kick */
     for (i = 0; i < NUM_MSIX_VECS; i++) {
-        if (idev->msix[i].vector == irq) {
-            spin_lock_irqsave(&idev->rupt_lock, flags);
-            idev->inno_stats.inno_rupt_stats.num_int[i]++;
-            if (idev->rupts[i].flag == 0) {             /* Skip if pending */
-                for (j = 0; j < rupt_mask_words; j++) {
-                    idev->rupts[i].pend[j] = cur_rupts[j] & idev->rupts[i].mask[j];
-                    if (idev->rupts[i].pend[j] != 0) {
-                        REG32(idev->inno_intr_regs.intr_inmc + j * 4) = idev->rupts[i].mask[j];
-                        if (idev->rupts[i].flag == 0) {
-                            /* Need to kick this thread */
-                            idev->rupts[i].flag = 1;
-                            idev->inno_stats.inno_rupt_stats.num_int[i]++;
-                            wake_up_interruptible(&idev->rupts[i].wait_q);
-                        }
-                    }
+        if(idev->intr_type & INNO_INTR_MSIX_ENABLED && idev->msix[i].vector != irq) {
+            continue;
+        }
+        for (j = 0; j < rupt_mask_words; j++) {
+            idev->rupts[i].pend[j] = cur_rupts[j] & idev->rupts[i].mask[j];
+            if (idev->rupts[i].pend[j]) {
+                REG32(idev->inno_intr_regs.intr_inmc + j * 4) = idev->rupts[i].mask[j];
+                if (idev->rupts[i].flag == 0) {
+                    /* Need to kick this thread */
+                    idev->rupts[i].flag = 1;
+                    idev->inno_stats.inno_rupt_stats.num_int[i]++;
+                    wake_up_interruptible(&idev->rupts[i].wait_q);
                 }
             }
-            spin_unlock_irqrestore(&idev->rupt_lock, flags);
         }
+    }
+    spin_unlock_irqrestore(&idev->rupt_lock, flags);
+    if(!(idev->intr_type & INNO_INTR_MSIX_ENABLED)) {
+        napi_schedule(&idev->napi);
     }
 
     return IRQ_HANDLED;
@@ -4249,12 +4321,54 @@ dma_buf_fail:
     return err;
 }
 
+static ssize_t ipd_read(struct file *filp, char __user *buf,
+                          size_t count, loff_t *ppos)
+{
+    // Simulate EOF (end of file)
+    ipd_trace("ipd read\n");
+    return 0;
+}
+
+/* File operations for IPD */
+static struct file_operations inno_fops =
+{
+    .owner   = THIS_MODULE,       /*prevents unloading when operations are in use*/
+    .open    = inno_open,         /* OPEN entry point */
+    .release = inno_close,        /* CLOSE entry point */
+    .mmap    = inno_mmap,         /* MMAP entry point */
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+    .ioctl          = inno_ioctl, /* IOCTL entry point */
+#else
+    .unlocked_ioctl = inno_ioctl, /* IOCTL entry point */
+    .compat_ioctl   = inno_ioctl, /* IOCTL entry point */
+#endif
+    .read    = ipd_read,
+};
+
+
 /*****************************************************************
  *
  * File operations
  *
  */
 
+
+
+/* This is still work in progress - will be clean up once finalized */
+#define REG32_B0(reg)    (*((volatile uint32_t *)(idev->bar0 + (reg))))
+#if 1
+static void
+config_bar2_atu(inno_device_t *idev)
+{
+    REG32_B0(0x108) = (off_t)idev->bar2_ba;
+    REG32_B0(0x10C) = 0x0;
+    REG32_B0(0x110) = (off_t)idev->bar2_ba + 0x3FFFFFF;
+    REG32_B0(0x114) = 0x0;
+    REG32_B0(0x118) = 0x0;
+    REG32_B0(0x100) = 0x0;
+    REG32_B0(0x104) = 0xC0000200;
+}
+#endif
 
 /** @brief Device probe function
  *
@@ -4272,16 +4386,21 @@ inno_probe(struct pci_dev             *pdev,
            const struct pci_device_id *ent)
 #endif
 {
-    int           err, offset;
+    int           rc, err, offset;
+    int           minor;
     inno_device_t *idev;
     uint32_t      jtag_idcode = 0;
+    dev_t         devno;
+    pcie_mac__msix_address_match_low_off_t  msix_address_match_low;
 
-    ipd_trace("Inno Probe\n");
+    mutex_lock(&ipd_idr_lock);
     /* Check for Innovium supported devices() */
     if (inno_num_devices == MAX_INNO_DEVICES) {
+        mutex_unlock(&ipd_idr_lock);
+        ipd_err("Reached maximum TL devices\n");
         return -1;
     }
-    ipd_debug("Inno Probe: inno_num_devices: %d\n", inno_num_devices);
+    ipd_trace("Inno Probe: inno_num_device: %d\n", inno_num_devices);
 
     /* Discovered device, start populating the node information */
     idev = &inno_instances[inno_num_devices];
@@ -4291,6 +4410,34 @@ inno_probe(struct pci_dev             *pdev,
     /* Init the idev area */
     memset(idev, 0, sizeof(inno_device_t));
     idev->instance = inno_num_devices;
+
+    minor = idr_alloc(&ipd_idr, idev, 0, MAX_INNO_DEVICES, GFP_KERNEL);
+    mutex_unlock(&ipd_idr_lock);
+    if (minor < 0) {
+        ipd_err("Invalid minor num %d\n", minor);
+        return minor;
+    }
+    idev->id = minor;
+    devno = MKDEV(MAJOR(inno_major_dev), minor);
+    ipd_debug("minor: %d devno: %d inno_major_dev: %d\n", minor, devno, inno_major_dev);
+
+    cdev_init(&idev->cdev, &inno_fops);
+    idev->cdev.owner = THIS_MODULE;
+    rc = cdev_add(&idev->cdev, devno, 1);
+    if(rc) {
+        ipd_err("cdev_add failed for instance: %u; rc: %d\n", idev->instance, rc);
+        goto err_idr_remove;
+    }
+    ipd_trace("%s: cdev: %p minor: %d\n", __FUNCTION__, &idev->cdev, idev->id);
+
+    idev->dev_node = device_create(inno_cl, &pdev->dev, devno, NULL, IPD_DRIVER_NAME "%d", minor);
+    if(IS_ERR(idev->dev_node)) {
+       ipd_err("Unable to create ipd device for instance: %u\n", idev->instance);
+       rc = PTR_ERR(idev->dev_node);
+       goto err_cdev_del;
+    }
+    ipd_debug("Created %s" "%d\n", IPD_DRIVER_NAME, minor);
+
     spin_lock_init(&idev->rupt_lock);
     spin_lock_init(&idev->lock);
 
@@ -4305,6 +4452,7 @@ inno_probe(struct pci_dev             *pdev,
     pci_read_config_byte(pdev, 8, &idev->rev_id);
     offset = pci_find_ext_capability(pdev, PCI_EXT_CAP_ID_DSN);
     if (offset == 0) {
+        
         ipd_err("Missing serial number for device\n");
     } else {
         uint32_t low, high;
@@ -4313,7 +4461,7 @@ inno_probe(struct pci_dev             *pdev,
         idev->serial_num = (((uint64_t)high) << 32) | low;
     }
 
-    if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
+        if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
         rupt_mask_words = 10;
     } else {
         rupt_mask_words = 8;
@@ -4335,7 +4483,31 @@ inno_probe(struct pci_dev             *pdev,
         ipd_err("Remap of bar0 failed\n");
         return -ENOMEM;
     }
-    ipd_debug("Bar mapped to %p\n", idev->bar0);
+
+    if ((idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
+        (idev->device_id == MRVL_T100_PCI_DEVICE_ID)) {
+        /* one time ATU config for BAR2 access */
+        config_bar2_atu(idev);
+
+        /* Mark BAR_2 as reserved */
+        err = pci_request_region(pdev, BAR_2, inno_driver_name);
+        if (err) {
+            return err;
+        }
+
+        /* Remap BAR2 MMIO region */
+        idev->bar2 = pci_ioremap_bar(pdev, BAR_2);
+        if (idev->bar2 == NULL) {
+            ipd_err("Remap of bar2 failed\n");
+            return -ENOMEM;
+        }
+
+        /* Assign the active bar */
+        idev->bar = idev->bar2;
+    } else {
+        /* Assign the active bar */
+        idev->bar = idev->bar0;
+    }
 
     /* Set DMA Mask  - try all possibilities */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0)
@@ -4392,6 +4564,11 @@ inno_probe(struct pci_dev             *pdev,
     /* Set the PCIe stuff in the idev */
     idev->bar0_ba   = (void *)pci_resource_start(pdev, BAR_0);
     idev->bar0_size = pci_resource_len(pdev, BAR_0);
+    if ((idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
+        (idev->device_id == MRVL_T100_PCI_DEVICE_ID)) {
+        idev->bar2_ba   = (void *)pci_resource_start(pdev, BAR_2);
+        idev->bar2_size = pci_resource_len(pdev, BAR_2);
+    }
     idev->pdev      = pdev;
 
     /* Set Innovium device structure */
@@ -4449,8 +4626,18 @@ inno_probe(struct pci_dev             *pdev,
         goto dma_buf_fail;
     }
 
+    if (idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
+       msix_address_match_low.tl12_flds.msix_address_match_en_f = 1;
+       REG32(PCIE_MAC__MSIX_ADDRESS_MATCH_LOW_OFF) = msix_address_match_low.data;
+    } else if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
+       msix_address_match_low.t100_flds.msix_address_match_en_f = 1;
+       REG32(PCIE_MAC__MSIX_ADDRESS_MATCH_LOW_OFF) = msix_address_match_low.data;
+    }
+
     /* Set up the inno_intr regs */
-    if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
+    if ((idev->device_id == MRVL_TL10_PCI_DEVICE_ID) ||
+        (idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
+        (idev->device_id == MRVL_T100_PCI_DEVICE_ID)) {
         idev->inno_intr_regs.intr_incr = INTR_INCR_1;
         idev->inno_intr_regs.intr_inmc = INTR_INMC_1;
         idev->inno_intr_regs.intr_inms = INTR_INMS_1;
@@ -4466,7 +4653,9 @@ inno_probe(struct pci_dev             *pdev,
         idev->inno_intr_regs.intr_iac_pci_mask = INTR_IAC_PCI_MASK;
     }
 
+    mutex_lock(&ipd_idr_lock);
     inno_num_devices++;
+    mutex_unlock(&ipd_idr_lock);
 
     /* Enable the Device */
     err = pci_enable_device(pdev);
@@ -4478,7 +4667,13 @@ inno_probe(struct pci_dev             *pdev,
     printk("%s pci bus:device:function is %d:%d:%d\n", inno_driver_name, pdev->bus->number, ((pdev->devfn)>>3)&0x7, (pdev->devfn)&0xf8);
     printk("%s interrupt mode is %s\n", inno_driver_name, intrmode2str(inno_intr));
 
-    if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+    if (device_iommu_mapped(&pdev->dev))
+        printk("%s Iommu enabled\n", inno_driver_name);
+    else
+        printk("%s Iommu not enabled\n", inno_driver_name);
+#endif
+        if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
         /* In the case of TL10, the device ID is encoded in
          * the JTAG_IDCODE_0 register, extract it.
          */
@@ -4488,7 +4683,17 @@ inno_probe(struct pci_dev             *pdev,
     return err;
 
 dma_buf_fail:
+    ipd_err("dma_buf_failed goto err\n");
     return err;
+err_cdev_del:
+    ipd_err("err_cdev_del goto err\n");
+    cdev_del(&idev->cdev);
+err_idr_remove:
+    ipd_err("err_idr_remove goto err\n");
+    mutex_lock(&ipd_idr_lock);
+    idr_remove(&ipd_idr, minor);
+    mutex_unlock(&ipd_idr_lock);
+    return rc;
 }
 
 
@@ -4511,21 +4716,29 @@ inno_remove(struct pci_dev *pdev)
 #endif
 {
     inno_device_t *idev;
-    ipd_trace("%s: pdev: %p\n", __FUNCTION__, pdev);
+    ipd_trace("%s pdev: %p\n", __FUNCTION__,pdev);
 
     idev = (inno_device_t *)pci_get_drvdata(pdev);
     if (idev == NULL) {
-        ipd_trace("%s: idev is null\n", __FUNCTION__);
+        ipd_trace("%s idev is null \n", __FUNCTION__);
         return;
     }
+    ipd_trace("%s: pdev: %p\n", __FUNCTION__, pdev);
+    ipd_trace("%s: idev: %p\n", __FUNCTION__, idev);
+    ipd_trace("%s: cdev: %p minor: %d\n", __FUNCTION__, &idev->cdev, idev->id);
 
+    device_destroy(inno_cl, MKDEV(MAJOR(inno_major_dev), idev->id));
+    cdev_del(&idev->cdev);
+    mutex_lock(&ipd_idr_lock);
+    idr_remove(&ipd_idr, idev->id);
+    mutex_unlock(&ipd_idr_lock);
     inno_reset(idev);
     inno_num_devices--;
 }
 
 static struct pci_driver inno_driver =
 {
-    .name     = "ipd",
+    .name     = IPD_DRIVER_NAME,
     .id_table = inno_ids,
     .probe    = inno_probe,
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
@@ -4648,7 +4861,7 @@ static int inno_intr_enable_msix(inno_device_t *idev)
                               idev);
         } else {
             err = request_irq(idev->msix[vector].vector,
-                              &_inno_rupt_handler,
+                              &inno_rupt_handler,
                               0,
                               idev->msix_names[vector],
                               idev);
@@ -4798,6 +5011,10 @@ inno_override_flow_control(inno_device_t  *idev , int enable)
         isn_read_pen(idev, 0, 0x00000540, 5, 33, &cpu_fc, 1);
     } else if(idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
         isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);
+    } else if(idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
+                /*isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);*/
+    } else if(idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
+                /*isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);*/
     } else {
 
         ipd_err("Unknown innovium device\n");
@@ -4816,6 +5033,12 @@ inno_override_flow_control(inno_device_t  *idev , int enable)
     } else if(idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
         isn_write_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);
         isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);
+    } else if(idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
+                /* isn_write_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);
+           isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);*/
+    } else if(idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
+                /* isn_write_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);
+           isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);*/
     } else {
 
         ipd_err("Unknown innovium device\n");
@@ -4877,9 +5100,9 @@ inno_cleanup_resources(inno_device_t  *idev )
     for (vector = 0; vector < NUM_MSIX_VECS; vector++) {
         idev->rupts[vector].vector = 0;
     }
-    printk("%s success\n", __FUNCTION__);
-    ipd_hw_init_done = 0;
 
+    printk("%s success\n", __FUNCTION__);
+    idev->hw_init_done = 0;
     return 0;
 }
 
@@ -4896,14 +5119,19 @@ inno_open(struct inode *inode,
     ipd_trace("inno open\n");
 
     /* Extract device, each minor num is index to device */
-    idev = &inno_instances[MINOR(inode->i_rdev)];
+    idev = container_of(inode->i_cdev, inno_device_t, cdev);
+    if(!idev) {
+        ipd_err("%s: Device not found\n", __FUNCTION__);
+        return -ENODEV;
+    }
+
     if (idev->pdev == NULL) {
         ipd_err("%s: Device does not exist - %d\n", __FUNCTION__, MINOR(inode->i_rdev));
         return -ENODEV;
     }
     fp->private_data = idev;
 
-    if (inno_ipd_opened != 0) {
+    if (idev->dev_opened != 0) {
         ipd_debug("Device opened before, proceeding without initialization");
         return -EEXIST;
     }
@@ -4914,9 +5142,8 @@ inno_open(struct inode *inode,
         /* Opened for read - just for IOCTL probe */
         return 0;
     }
-
+    idev->dev_opened = 1;
     printk("%s opened successfully\n", inno_driver_name);
-    inno_ipd_opened = 1;
     return 0;
 }
 
@@ -4965,17 +5192,60 @@ static int inno_cpu_block_init(inno_device_t *idev)
         ipd_debug("inno_is_cpu_block_init_done performing now");
         /* Chip reset sequence */
 
-        /* Init memories */
-        iac_mem_init.flds.bram_f = 1;
-        iac_mem_init.flds.asc_cmn_f = 1;
-        iac_mem_init.flds.asc_comp0_f = 1;
-        iac_mem_init.flds.asc_comp1_f = 1;
-        iac_mem_init.flds.asc_comp2_f = 1;
-        iac_mem_init.flds.asc_comp3_f = 1;
-        iac_mem_init.flds.asc_comp4_f = 1;
-        iac_mem_init.flds.asc_comp5_f = 1;
-        iac_mem_init.flds.asc_comp6_f = 1;
-        iac_mem_init.flds.asc_comp7_f = 1;
+
+        if(idev->device_id == INNO_TERALYNX_PCI_DEVICE_ID) {
+            /* Init memories */
+            iac_mem_init.tl_flds.bram_f = 1;
+            iac_mem_init.tl_flds.asc_cmn_f = 1;
+            iac_mem_init.tl_flds.asc_comp0_f = 1;
+            iac_mem_init.tl_flds.asc_comp1_f = 1;
+            iac_mem_init.tl_flds.asc_comp2_f = 1;
+            iac_mem_init.tl_flds.asc_comp3_f = 1;
+            iac_mem_init.tl_flds.asc_comp4_f = 1;
+            iac_mem_init.tl_flds.asc_comp5_f = 1;
+            iac_mem_init.tl_flds.asc_comp6_f = 1;
+            iac_mem_init.tl_flds.asc_comp7_f = 1;
+        } else if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
+            iac_mem_init.tl10_flds.bram_f = 1;
+            iac_mem_init.tl10_flds.asc_cmn_f = 1;
+            iac_mem_init.tl10_flds.asc_comp0_f = 1;
+            iac_mem_init.tl10_flds.asc_comp1_f = 1;
+            iac_mem_init.tl10_flds.asc_comp2_f = 1;
+            iac_mem_init.tl10_flds.asc_comp3_f = 1;
+            iac_mem_init.tl10_flds.asc_comp4_f = 1;
+            iac_mem_init.tl10_flds.asc_comp5_f = 1;
+            iac_mem_init.tl10_flds.asc_comp6_f = 1;
+            iac_mem_init.tl10_flds.asc_comp7_f = 1;
+        } else if (idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
+            iac_mem_init.tl12_flds.bram_f = 1;
+            iac_mem_init.tl12_flds.asc_cmn_f = 1;
+            iac_mem_init.tl12_flds.asc_comp0_f = 1;
+            iac_mem_init.tl12_flds.asc_comp1_f = 1;
+            iac_mem_init.tl12_flds.asc_comp2_f = 1;
+            iac_mem_init.tl12_flds.asc_comp3_f = 1;
+            iac_mem_init.tl12_flds.asc_comp4_f = 1;
+            iac_mem_init.tl12_flds.asc_comp5_f = 1;
+            iac_mem_init.tl12_flds.asc_comp6_f = 1;
+            iac_mem_init.tl12_flds.asc_comp7_f = 1;
+            iac_mem_init.tl12_flds.asc_comp8_f = 1;
+            iac_mem_init.tl12_flds.asc_comp9_f = 1;
+        } else if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
+            iac_mem_init.t100_flds.bram_f = 1;
+            iac_mem_init.t100_flds.asc_cmn_f = 1;
+            iac_mem_init.t100_flds.asc_comp0_f = 1;
+            iac_mem_init.t100_flds.asc_comp1_f = 1;
+            iac_mem_init.t100_flds.asc_comp2_f = 1;
+            iac_mem_init.t100_flds.asc_comp3_f = 1;
+            iac_mem_init.t100_flds.asc_comp4_f = 1;
+            iac_mem_init.t100_flds.asc_comp5_f = 1;
+            iac_mem_init.t100_flds.asc_comp6_f = 1;
+            iac_mem_init.t100_flds.asc_comp7_f = 1;
+            iac_mem_init.t100_flds.asc_comp8_f = 1;
+            iac_mem_init.t100_flds.asc_comp9_f = 1;
+        } else {
+            ipd_err("Invalid device: 0x%x\n", idev->device_id);
+            return rc;
+        }
         REG32(IAC_MEM_INIT) = iac_mem_init.data;
 
         mcu_mem_init.flds.mcu1_f = 1;
@@ -4993,6 +5263,9 @@ static int inno_cpu_block_init(inno_device_t *idev)
             REG32(DMA_RXE_SWITCH_TO_CPU_QUEUE_OFFSET) = 268;
         } else if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
             REG32(DMA_RXE_SWITCH_TO_CPU_QUEUE_OFFSET) = 524;
+        } else if ((idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
+                   (idev->device_id == MRVL_T100_PCI_DEVICE_ID)) {
+            REG32(DMA_RXE_SWITCH_TO_CPU_QUEUE_OFFSET) = 528;
         } else {
             ipd_err("Invalid device: 0x%x\n", idev->device_id);
             return rc;
@@ -5146,9 +5419,9 @@ inno_hw_init (inno_device_t *idev)
         return rc;
     }
 
-    if (ipd_hw_init_done == 1) {
+    if (idev->hw_init_done == 1) {
         inno_cleanup_resources(idev);
-        inno_ipd_opened_before = 0;
+        idev->dev_opened_before = 0;
     }
     inno_hw_swaps_clear(idev);
     smp_mb();
@@ -5158,6 +5431,7 @@ inno_hw_init (inno_device_t *idev)
     for (i = 0; i < 32; i += 4) {
         REG32(idev->inno_intr_regs.intr_incr + i) = 0xffffffff;
     }
+
     err = inno_napi_init(idev);
     if (err) {
         ipd_err("%s: NAPI init error\n", __FUNCTION__);
@@ -5167,7 +5441,6 @@ inno_hw_init (inno_device_t *idev)
 
     smp_mb();
     err = inno_hw_swaps_enable(idev);
-
     smp_mb();
 
     err = inno_syncmode_config(idev);
@@ -5179,6 +5452,7 @@ inno_hw_init (inno_device_t *idev)
 	    return err;
     }
     smp_mb();
+
     if(idev->intr_type & INNO_INTR_MSI_ENABLED) {
         err = inno_msi_workaround(idev);
         if (err)
@@ -5200,23 +5474,28 @@ inno_hw_init (inno_device_t *idev)
     REG32(idev->inno_intr_regs.intr_iac_pci_mask) = intr_iac_pci_mask.data;
 
 
-    if(idev->device_id == INNO_TERALYNX_PCI_DEVICE_ID ||
-       idev->device_id == INNO_K2_PCI_DEVICE_ID) {
+    if(idev->device_id == INNO_TERALYNX_PCI_DEVICE_ID) {
         idev->chip_hdr_len     = INNO_TERALYNX_CHIP_HDR_LEN;
         idev->chip_dbg_hdr_len = INNO_TERALYNX_CHIP_DBG_HDR_LEN;
     } else if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
         idev->chip_hdr_len     = INNO_TL10_CHIP_HDR_LEN;
         idev->chip_dbg_hdr_len = INNO_TL10_CHIP_DBG_HDR_LEN;
+    } else if (idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
+                idev->chip_hdr_len     = INNO_TL12_CHIP_HDR_LEN;
+        idev->chip_dbg_hdr_len = INNO_TL12_CHIP_DBG_HDR_LEN;
+    } else if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
+                idev->chip_hdr_len     = INNO_T100_CHIP_HDR_LEN;
+        idev->chip_dbg_hdr_len = INNO_T100_CHIP_DBG_HDR_LEN;
     } else {
         ipd_err("Invalid device: 0x%x\n", idev->device_id);
     }
     ipd_debug("Intr-type status!!: %s\n", inno_intrtype_status2str(idev->intr_type));
     inno_override_flow_control(idev, 0);
-    ipd_hw_init_done = 1;
-    inno_ipd_opened_before = 1;
-
+    idev->hw_init_done = 1;
+    idev->dev_opened_before = 1;
     return 0;
 }
+
 /** @brief File close function
  *
  *  @return ERRNO
@@ -5231,7 +5510,7 @@ inno_close(struct inode *inode,
         return 0;
     }
 
-    if (inno_ipd_opened == 0) {
+    if (idev->dev_opened == 0) {
         ipd_debug("Device closed before, proceeding without de-initialization");
         return -ENODEV;
     }
@@ -5245,13 +5524,14 @@ inno_close(struct inode *inode,
     ipd_info("%s: boottype: %d\n", __FUNCTION__, ipd_boottype);
     if (ipd_boottype != IPD_BOOTTYPE_FAST){
         inno_cleanup_resources(idev);
-        inno_ipd_opened_before = 0;
+        idev->dev_opened_before = 0;
     }
 
     idev->inno_stats.inno_drv_stats.num_close++;
 
-    inno_ipd_opened = 0;
+    idev->dev_opened = 0;
     printk("%s closed successfully\n", inno_driver_name);
+
 close_done:
     fp->private_data = NULL;
 
@@ -5319,21 +5599,6 @@ inno_mmap(struct file           *fp,
 
     return rc;
 }
-
-/* File operations for IPD */
-static struct file_operations inno_fops =
-{
-    .owner   = THIS_MODULE,       /*prevents unloading when operations are in use*/
-    .open    = inno_open,         /* OPEN entry point */
-    .release = inno_close,        /* CLOSE entry point */
-    .mmap    = inno_mmap,         /* MMAP entry point */
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
-    .ioctl          = inno_ioctl, /* IOCTL entry point */
-#else
-    .unlocked_ioctl = inno_ioctl, /* IOCTL entry point */
-    .compat_ioctl   = inno_ioctl, /* IOCTL entry point */
-#endif
-};
 
 /*****************************************************************
  *
@@ -5473,34 +5738,17 @@ inno_init_module(void)
     int rc;
 
     ipd_trace("%s \n", inno_driver_name);
+   rc = alloc_chrdev_region(&inno_major_dev, 0, MAX_INNO_DEVICES, IPD_DRIVER_NAME);
+   if (rc) {
+       ipd_err("Failed to allocate char dev region\n");
+       return rc;
+   }
 
-    /* Register all possible nodes as minor nums */
-    rc = register_chrdev_region(inno_major_dev, MAX_INNO_DEVICES, "ipd");
-    if (rc < 0) {
-        /* So major is not availble try to allocate from kernel */
-        rc = alloc_chrdev_region(&inno_major_dev, 0, MAX_INNO_DEVICES, "ipd");
-        if (rc < 0) {
-            ipd_err("Unable to alloc char device\n");
-            return rc;
-        }
-        ipd_warn("Inno: the char device major is %d\n", MAJOR(inno_major_dev));
-    }
-   if ((inno_cl = class_create(THIS_MODULE, "ipd")) == NULL) {
+   inno_cl = class_create(THIS_MODULE, IPD_DRIVER_NAME);
+   if (IS_ERR(inno_cl)) {
        ipd_err("Inno: Unable to create ipd class\n");
        goto cl_fail;
    }
-   if (device_create(inno_cl, NULL, inno_major_dev, NULL, "ipd") == NULL) {
-       ipd_err("Inno: Unable to create ipd device\n");
-       goto dev_create_fail;
-    }
-    cdev_init(&inno_cdev, &inno_fops);
-    inno_cdev.owner = THIS_MODULE;
-    rc = cdev_add(&inno_cdev, inno_major_dev, MAX_INNO_DEVICES);
-    ipd_info("Inno: cdev major %d rc %d\n", MAJOR(inno_major_dev), rc);
-    if (rc < 0) {
-        ipd_err("Unable to create cdev major %d\n", MAJOR(inno_major_dev));
-        goto char_fail;
-    }
 
     rc = pci_register_driver(&inno_driver);
     if (rc) {
@@ -5513,10 +5761,6 @@ inno_init_module(void)
     return 0;
 
 cdev_fail:
-    cdev_del(&inno_cdev);
-char_fail:
-    device_destroy(inno_cl,inno_major_dev);
-dev_create_fail:
     class_destroy(inno_cl);
 cl_fail:
     unregister_chrdev_region(inno_major_dev, MAX_INNO_DEVICES);
@@ -5531,20 +5775,12 @@ cl_fail:
 static void __exit
 inno_exit_module(void)
 {
-    int i;
-
     ipd_trace("inno exit\n");
-    cdev_del(&inno_cdev);
-    device_destroy(inno_cl,inno_major_dev);
-    class_destroy(inno_cl);
-    unregister_chrdev_region(inno_major_dev, MAX_INNO_DEVICES);
-    for (i = 0; i < inno_num_devices; ++i) {
-        if(inno_instances[i].pdev != NULL) {
-            inno_reset(&inno_instances[i]);
-        }
-    }
     pci_unregister_driver(&inno_driver);
     inno_sysfs_deinit();
+    class_destroy(inno_cl);
+    unregister_chrdev_region(inno_major_dev, MAX_INNO_DEVICES);
+    idr_destroy(&ipd_idr);
     printk("%s exited\n", inno_driver_name);
 }
 
@@ -5555,3 +5791,4 @@ module_exit(inno_exit_module);
 MODULE_AUTHOR("Marvell Technology, Inc.");
 MODULE_DESCRIPTION("Teralynx Switch PCIe Driver");
 MODULE_LICENSE("GPL");
+MODULE_VERSION(IPD_VERSION_STRING);

@@ -62,7 +62,7 @@ typedef struct __attribute__((__packed__))  inno_info_header_s {
     uint8_t     fwd_hdr_offset;   /** Header offset in the packet that used for forwarding */
     uint8_t     fwd_layer_type:3; /** Indicates the type of the forwarding layer, defined as INNO_FWD_LAYER_TYPE_<> */
     uint8_t     rsvd2:5;          /** Reserved field */
-    uint32_t    nhoif;            /** Nexthop of routed packet - supported for TL10 and later */
+    uint32_t    nhoif;            /** Nexthop of routed packet */
     uint8_t     rsvd[1];          /** Reserved field */
     uint8_t     ext_size;         /** Extension hdr size */
     uint8_t     ext_type;         /** Extension hdr type */

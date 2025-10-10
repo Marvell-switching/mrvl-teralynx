@@ -46,6 +46,9 @@ disclaimer.
 /* ptp total device header size PTP_OUTER_ENCAP_SIZE + PTP_SHIM */
 #define PTP_ENCAP_HDRS_SIZE (PTP_OUTER_ENCAP_SIZE + PTP_SHIM_HDR_SIZE)
 
+/* PTP PDelay Request Message Type */
+#define PTP_PDELAY_REQ      0x2
+
 #define EXT_HDRS_MAX_LEN    128
 
 #define NANOSEC_PER_SEC     1000000000
