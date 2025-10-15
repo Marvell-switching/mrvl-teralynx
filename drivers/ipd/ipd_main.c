@@ -5573,13 +5573,21 @@ inno_mmap(struct file           *fp,
     kvirt = vma->vm_pgoff << PAGE_SHIFT;;
 
     vma->vm_ops       = &inno_mmap_mem_ops;
-    vma->vm_flags    |= MMAP_VM_FLAGS;
+
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+        vm_flags_set(vma, MMAP_VM_FLAGS);
+    #else
+        vma->vm_flags |= MMAP_VM_FLAGS;
+    #endif
 
     do {
         ipd_verbose("remap_pfn %p %p %p\n",(void *)start, (void *)kvirt, (void *) virt_to_phys((void *) kvirt));
 
-        vma->vm_flags |= MMAP_VM_FLAGS;
-
+        #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+            vm_flags_set(vma, MMAP_VM_FLAGS);
+        #else
+            vma->vm_flags |= MMAP_VM_FLAGS;
+        #endif
         /* X86 systems have an I/O coherent cache;  PPC & ARM does not */
 #if !defined(__i386__) && !defined(__x86_64__)
         vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
@@ -5744,7 +5752,12 @@ inno_init_module(void)
        return rc;
    }
 
-   inno_cl = class_create(THIS_MODULE, IPD_DRIVER_NAME);
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+        inno_cl = class_create(IPD_DRIVER_NAME);
+    #else
+        inno_cl = class_create(THIS_MODULE, IPD_DRIVER_NAME);
+    #endif
+
    if (IS_ERR(inno_cl)) {
        ipd_err("Inno: Unable to create ipd class\n");
        goto cl_fail;

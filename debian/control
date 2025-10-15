@@ -2,12 +2,15 @@ Source: mrvlteralynx
 Section: unknown
 Priority: optional
 Maintainer: Marvell <keshavg@marvell.com>
-Build-Depends: debhelper (>=9)
+Build-Depends: debhelper-compat (= 13), python3
+Rules-Requires-Root: no
+Depends: linux-image-6.12.41+deb13-sonic-amd64-unsigned
 Standards-Version: 3.9.6
 Homepage: <insert the upstream URL, if relevant>
 
 Package: mrvlteralynx
 Architecture: any
+Depends: linux-image-6.12.41+deb13-sonic-amd64-unsigned
 Homepage: <insert the upstream URL, if relevant>
 Description:
 	kernel modules for teralynx switch driver

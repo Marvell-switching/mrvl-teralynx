@@ -2,48 +2,32 @@
 
 include /usr/share/dpkg/pkg-info.mk
 
+#export DH_VERBOSE=1
+
 PACKAGE_PRE_NAME := mrvlteralynx
 KVERSION   ?= $(shell uname -r)
 KERNEL_SRC :=  /lib/modules/$(KVERSION)
 MOD_SRC_DIR:= $(shell pwd)
 
 %:
-	dh $@ --with systemd,python3 --buildsystem=pybuild
+	dh $@ --with python3 --buildsystem=pybuild --pybuild-system=setuptools
 
-clean:
-	dh_testdir
-	dh_testroot
-	dh_clean
+override_dh_auto_clean:
 	make -C $(KERNEL_SRC)/build M=$(MOD_SRC_DIR)/drivers/ipd clean
+	dh_clean
 
-build:
+override_dh_auto_configure:
+	# No configuration needed
+
+override_dh_auto_build:
 	sed "s/KVERSION/${KVERSION}/g" ${MOD_SRC_DIR}/debian/mrvlteralynx.install.template > ${MOD_SRC_DIR}/debian/mrvlteralynx.install
 	make modules -C $(KERNEL_SRC)/build M=$(MOD_SRC_DIR)/drivers/ipd
 
-binary: binary-arch binary-indep
-	# Nothing to do
+override_dh_auto_test:
+	# No tests to run
 
-binary-arch:
-	# Nothing to do
+override_dh_usrlocal:
+	# Skip dh_usrlocal because we manually install files to /usr/local/bin
 
-binary-indep:
-	dh_testdir
-	dh_installdirs
-
-	# Resuming debhelper scripts
-	dh_testroot
-	dh_install
-	dh_installchangelogs
-	dh_installdocs
-	dh_systemd_enable
-	dh_installinit
-	dh_systemd_start
-	dh_link
-	dh_fixperms
-	dh_compress
-	dh_strip
-	dh_installdeb
-	dh_gencontrol
-	dh_md5sums
-	dh_builddeb
-.PHONY: build binary binary-arch binary-indep clean
+override_dh_auto_install:
+	# Nothing to install
