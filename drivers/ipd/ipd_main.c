@@ -108,6 +108,8 @@ static long
 inno_ioctl(struct file   *fp,
            unsigned int  cmd,
            unsigned long arg);
+static void
+inno_shutdown(struct pci_dev *pdev);
 
 #endif
 static int inno_intr_init(inno_device_t *idev);
@@ -236,6 +238,17 @@ static char *inno_intrtype_status2str(int status)
         default:
             return "Unknown";
     }
+}
+
+static phys_addr_t
+inno_get_phys_addr(inno_device_t *idev, volatile void *va, dma_addr_t ba)
+{
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+    return (device_iommu_mapped(&idev->pdev->dev) ? virt_to_phys(va) : ba);
+#else
+    return virt_to_phys(va);
+#endif
 }
 
 void
@@ -1202,8 +1215,8 @@ fill:
     /* Fill in the return data */
     ioctl->ring       = (off_t)ring->desc_ba;
     ioctl->wb         = (off_t)ring->wb_ba;
-    ioctl->ring_pa    = (off_t)virt_to_phys(ring->rx_desc);
-    ioctl->wb_pa      = (off_t)virt_to_phys(ring->rx_wb);
+    ioctl->ring_pa    = inno_get_phys_addr(idev, ring->rx_desc, ring->desc_ba);
+    ioctl->wb_pa      = inno_get_phys_addr(idev, ring->rx_wb, ring->wb_ba);
     ioctl->idx_offset = ring->idx_offset;
     ioctl->cidx       = ring->cidx;
     ioctl->pidx       = ring->pidx;
@@ -1412,7 +1425,7 @@ inno_alloc_hrr(inno_device_t    *idev,
 
     /* Fill in the return data */
     ioctl->hrr             = (off_t)idev->hrr.ba;
-    ioctl->hrr_pa          = (off_t)virt_to_phys(idev->hrr.vmaddr);
+    ioctl->hrr_pa          = inno_get_phys_addr(idev, idev->hrr.vmaddr, idev->hrr.ba);
     ioctl->hrr_pidx_offset = POOL_HRR_OFFSET;
     ioctl->size            = idev->hrr.count * idev->hrr.size;
 
@@ -1523,7 +1536,7 @@ inno_pic_st_alloc(inno_device_t      *idev,
 
     /* Send data back to ioctl caller */
     ioctl->wb_ba = pic_st->wb_ba;
-    ioctl->wb_pa = (off_t)virt_to_phys(pic_st->wb_vmaddr);
+    ioctl->wb_pa = inno_get_phys_addr(idev, pic_st->wb_vmaddr, pic_st->wb_ba);
 
     ipd_debug("PIC Status chain allocated\n");
 
@@ -2027,11 +2040,11 @@ fill:
     /* read the device's learn CIDX */
     learn->cidx.data = REG32(RXE_DMA_MSG_DESC_CIDX_0);
     /* Fill in the return data */
-    ioctl->learn_ba          = (off_t)idev->learn.ba;
-    ioctl->learn_pa          = (off_t)virt_to_phys(learn->vmaddr);
+    ioctl->learn_ba          = (off_t)learn->orig_ba;
+    ioctl->learn_pa          = inno_get_phys_addr(idev, learn->vmaddr, learn->orig_ba);
     ioctl->pidx_offset       = learn->pidx_offset;
     ioctl->wb_ba             = learn->wb_ba;
-    ioctl->wb_pa             = (off_t)virt_to_phys(learn->wb_vmaddr);
+    ioctl->wb_pa             = inno_get_phys_addr(idev, learn->wb_vmaddr, learn->wb_ba);
     ioctl->pidx              = learn->pidx.data;
     ioctl->cidx              = learn->cidx.data;
 
@@ -2538,7 +2551,7 @@ inno_ring_page_alloc(inno_device_t *idev,
         dma_alloc_p->vmaddr = page_address(dma_alloc_p->page);
 
         ioctl_ring_page_alloc->buf_ba = dma_alloc_p->dma_addr;
-        ioctl_ring_page_alloc->buf_pa = (off_t)virt_to_phys(dma_alloc_p->vmaddr);
+        ioctl_ring_page_alloc->buf_pa = inno_get_phys_addr(idev, dma_alloc_p->vmaddr, dma_alloc_p->dma_addr);
         smp_mb();
         ring->rx_desc[idx].hsn_upper = (uint32_t)(dma_alloc_p->dma_addr >> 32);
         ring->rx_desc[idx].hsn_lower = (uint32_t)(dma_alloc_p->dma_addr & 0x00000000ffffffff);
@@ -2584,7 +2597,7 @@ inno_ring_page_alloc(inno_device_t *idev,
         dma_alloc_p->vmaddr = page_address(dma_alloc_p->page);
 
         ioctl_ring_page_alloc->buf_ba = dma_alloc_p->dma_addr;
-        ioctl_ring_page_alloc->buf_pa = (off_t)virt_to_phys(dma_alloc_p->vmaddr);
+        ioctl_ring_page_alloc->buf_pa = inno_get_phys_addr(idev, dma_alloc_p->vmaddr, dma_alloc_p->dma_addr);
     }
 
     return 0;
@@ -3281,7 +3294,7 @@ inno_ioctl(struct file   *f,
             ioctl_query.bar0_size        = idev->bar0_size;
         }
         ioctl_query.pool_baddr       = (off_t)idev->pool_ba;
-        ioctl_query.pool_paddr       = (off_t)virt_to_phys(idev->pool);
+        ioctl_query.pool_paddr       = inno_get_phys_addr(idev, idev->pool, idev->pool_ba);
         ioctl_query.pool_size        = POOL_SIZE;
         ioctl_query.sync_blk_offset  = POOL_IAC_BLK_OFFSET;
         ioctl_query.sync_blk_size    = 4096;
@@ -4380,10 +4393,12 @@ inno_probe(struct pci_dev             *pdev,
     inno_device_t *idev;
     uint32_t      jtag_idcode = 0;
     dev_t         devno;
+    pcie_mac__msix_address_match_low_off_t  msix_address_match_low;
 
     mutex_lock(&ipd_idr_lock);
     /* Check for Innovium supported devices() */
     if (inno_num_devices == MAX_INNO_DEVICES) {
+        mutex_unlock(&ipd_idr_lock);
         ipd_err("Reached maximum TL devices\n");
         return -1;
     }
@@ -4413,10 +4428,10 @@ inno_probe(struct pci_dev             *pdev,
     rc = cdev_add(&idev->cdev, devno, 1);
     if(rc) {
         ipd_err("cdev_add failed for instance: %u; rc: %d\n", idev->instance, rc);
-	goto err_idr_remove;
+        goto err_idr_remove;
     }
     ipd_trace("%s: cdev: %p minor: %d\n", __FUNCTION__, &idev->cdev, idev->id);
- 
+
     idev->dev_node = device_create(inno_cl, &pdev->dev, devno, NULL, IPD_DRIVER_NAME "%d", minor);
     if(IS_ERR(idev->dev_node)) {
        ipd_err("Unable to create ipd device for instance: %u\n", idev->instance);
@@ -4613,6 +4628,14 @@ inno_probe(struct pci_dev             *pdev,
         goto dma_buf_fail;
     }
 
+    if (idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
+       msix_address_match_low.tl12_flds.msix_address_match_en_f = 1;
+       REG32(PCIE_MAC__MSIX_ADDRESS_MATCH_LOW_OFF) = msix_address_match_low.data;
+    } else if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
+       msix_address_match_low.t100_flds.msix_address_match_en_f = 1;
+       REG32(PCIE_MAC__MSIX_ADDRESS_MATCH_LOW_OFF) = msix_address_match_low.data;
+    }
+
     /* Set up the inno_intr regs */
     if ((idev->device_id == MRVL_TL10_PCI_DEVICE_ID) ||
         (idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
@@ -4646,6 +4669,12 @@ inno_probe(struct pci_dev             *pdev,
     printk("%s pci bus:device:function is %d:%d:%d\n", inno_driver_name, pdev->bus->number, ((pdev->devfn)>>3)&0x7, (pdev->devfn)&0xf8);
     printk("%s interrupt mode is %s\n", inno_driver_name, intrmode2str(inno_intr));
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+    if (device_iommu_mapped(&pdev->dev))
+        printk("%s Iommu enabled\n", inno_driver_name);
+    else
+        printk("%s Iommu not enabled\n", inno_driver_name);
+#endif
         if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
         /* In the case of TL10, the device ID is encoded in
          * the JTAG_IDCODE_0 register, extract it.
@@ -4709,6 +4738,25 @@ inno_remove(struct pci_dev *pdev)
     inno_num_devices--;
 }
 
+static void
+inno_shutdown(struct pci_dev *pdev)
+{
+    inno_device_t *idev;
+    ipd_trace("%s pdev: %p\n", __FUNCTION__,pdev);
+
+    idev = (inno_device_t *)pci_get_drvdata(pdev);
+    if (idev == NULL) {
+        ipd_trace("%s idev is null \n", __FUNCTION__);
+        return;
+    }
+    ipd_trace("%s: pdev: %p\n", __FUNCTION__, pdev);
+    ipd_trace("%s: idev: %p\n", __FUNCTION__, idev);
+    ipd_trace("%s: cdev: %p minor: %d\n", __FUNCTION__, &idev->cdev, idev->id);
+
+    inno_reset(idev);
+}
+
+
 static struct pci_driver inno_driver =
 {
     .name     = IPD_DRIVER_NAME,
@@ -4719,6 +4767,7 @@ static struct pci_driver inno_driver =
 #else
     .remove      = inno_remove,
 #endif
+    .shutdown    = inno_shutdown,
     .err_handler = &inno_pci_error,
 };
 
@@ -5236,6 +5285,9 @@ static int inno_cpu_block_init(inno_device_t *idev)
             REG32(DMA_RXE_SWITCH_TO_CPU_QUEUE_OFFSET) = 268;
         } else if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
             REG32(DMA_RXE_SWITCH_TO_CPU_QUEUE_OFFSET) = 524;
+        } else if ((idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
+                   (idev->device_id == MRVL_T100_PCI_DEVICE_ID)) {
+            REG32(DMA_RXE_SWITCH_TO_CPU_QUEUE_OFFSET) = 528;
         } else {
             ipd_err("Invalid device: 0x%x\n", idev->device_id);
             return rc;

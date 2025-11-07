@@ -215,6 +215,7 @@ inno_unpack_ptp_ext_header(inno_device_t *idev,
     struct ptp_header *ptp_hdr = NULL;
     uint8_t *buf;
     uint8_t ptp_msg_type = 0;
+    uint8_t ip_version = 0;
     uint64_t idts1 = 0, idts2 = 0, temp = 0;
     cpu_ptp_control_t cpu_ptp_ctrl;
     uint32_t idts_diff = 0;
@@ -222,6 +223,7 @@ inno_unpack_ptp_ext_header(inno_device_t *idev,
     uint32_t idts2_31_0, idts2_47_32, igts_sec_31_0, igts_sec_47_32, igts_nsec_31_0;
     uint64_t igts_sec;
     uint32_t igts_nsec;
+    uint32_t ip_hdr_size = 0, ptp_offset = 0;
 
 	if (ldh->_u.vf0._rsvd_fixed_0_f) {
         /* if debug header is present */
@@ -237,8 +239,20 @@ inno_unpack_ptp_ext_header(inno_device_t *idev,
     idts1 = __builtin_bswap64(temp);
 
     idts1 = idts1 & 0xffffffffffff;
+    // Determine IP version from buffer
+    ip_version = (buf[PTP_SHIM_HDR_SIZE + L2_HDR_SIZE] >> 4) & 0x0F;
 
-    ptp_hdr = (struct ptp_header *)(buf+PTP_SHIM_HDR_SIZE+ L2_IPV4_UDP_HDR_SIZE);
+    if (ip_version == 4) {
+        ip_hdr_size = IPV4_HDR_SIZE + UDP_HDR_SIZE;
+    }
+    else if (ip_version == 6) {
+        ip_hdr_size = IPV6_HDR_SIZE + UDP_HDR_SIZE;
+    }
+
+    // Compute total offset to PTP header
+    ptp_offset = PTP_SHIM_HDR_SIZE + L2_HDR_SIZE + ip_hdr_size;
+    ptp_hdr = (struct ptp_header *)(buf + ptp_offset);
+
     ptp_msg_type = ptp_hdr->tsmt & 0x0f;
 
     /* trigger timers snapshot */

@@ -41,7 +41,10 @@ disclaimer.
 /* ptp outer encapsulations: OuterL2(14B) + OuterL3(20B) + GRE(4B) */
 #define PTP_OUTER_ENCAP_SIZE    (14 + 20 + 4)
 /* ptp inner encapsulations: InnerL2(18B) + InnerL3(20B) + UDP(8B) */
-#define L2_IPV4_UDP_HDR_SIZE    (18 + 20 + 8)
+#define L2_HDR_SIZE             18     // Ethernet + VLAN
+#define UDP_HDR_SIZE             8
+#define IPV4_HDR_SIZE           20
+#define IPV6_HDR_SIZE           40
 
 /* ptp total device header size PTP_OUTER_ENCAP_SIZE + PTP_SHIM */
 #define PTP_ENCAP_HDRS_SIZE (PTP_OUTER_ENCAP_SIZE + PTP_SHIM_HDR_SIZE)

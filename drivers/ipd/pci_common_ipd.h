@@ -116,6 +116,7 @@ typedef enum node__pci_reg_drv_ {
     LEARN_MSG_1                                                  = 0x00004fac,
     MCU_MEM_INIT                                                 = 0x00013318,
     PCI_AXI_LINK_DOWN_INDICATOR_BIT_L0                           = 0x0000a824,
+    PCIE_MAC__MSIX_ADDRESS_MATCH_LOW_OFF                         = 0x01000940,
     RXE_DMA_MSG_DATA_BASE_HI_0                                   = 0x00004840,
     RXE_DMA_MSG_DATA_BASE_LO_0                                   = 0x0000483c,
     RXE_DMA_MSG_DATA_CIDX_0                                      = 0x0000485c,
@@ -2574,6 +2575,34 @@ typedef union {
     } tl_flds;
     uint32_t data;
 } pci_axi_link_down_indicator_bit_l0_t;
+
+
+
+typedef union {
+    struct t100_pcie_mac__msix_address_match_low_off {
+#if PCI_STRUCT_FIELD_ORDER_LO_HI
+        uint32_t msix_address_match_en_f:1;
+        uint32_t msix_address_match_reserved_1_f:1;
+        uint32_t msix_address_match_low_f:30;
+#else 
+        uint32_t msix_address_match_low_f:30;
+        uint32_t msix_address_match_reserved_1_f:1;
+        uint32_t msix_address_match_en_f:1;
+#endif 
+    } t100_flds;
+    struct tl12_pcie_mac__msix_address_match_low_off {
+#if PCI_STRUCT_FIELD_ORDER_LO_HI
+        uint32_t msix_address_match_en_f:1;
+        uint32_t msix_address_match_reserved_1_f:1;
+        uint32_t msix_address_match_low_f:30;
+#else 
+        uint32_t msix_address_match_low_f:30;
+        uint32_t msix_address_match_reserved_1_f:1;
+        uint32_t msix_address_match_en_f:1;
+#endif 
+    } tl12_flds;
+    uint32_t data;
+} pcie_mac__msix_address_match_low_off_t;
 
 
 
