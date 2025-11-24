@@ -36,7 +36,7 @@ disclaimer.
  * Current IFCS IPD version of the release
  * Version: Major, Minor, SubMinor, Branch, Maintenance and Debug
  */
-#define IPD_VERSION_STRING "0.16.2.0.0.0"
+#define IPD_VERSION_STRING "0.16.2.1.0.1"
 static char *ipd_version = IPD_VERSION_STRING;
 
 #endif // __IPD_VERSION_H__
