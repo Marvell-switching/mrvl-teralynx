@@ -64,8 +64,6 @@ disclaimer.
 #define INNO_TERALYNX_CHIP_DBG_HDR_LEN 32
 #define INNO_TL10_CHIP_HDR_LEN          20
 #define INNO_TL10_CHIP_DBG_HDR_LEN      40
-#define INNO_TL12_CHIP_HDR_LEN          20
-#define INNO_TL12_CHIP_DBG_HDR_LEN      40
 #define INNO_T100_CHIP_HDR_LEN          20
 #define INNO_T100_CHIP_DBG_HDR_LEN      40
 
@@ -151,7 +149,6 @@ static struct pci_device_id inno_ids[] =
 {
     { PCI_DEVICE(INNO_PCI_VENDOR_ID, INNO_TERALYNX_PCI_DEVICE_ID) },
     { PCI_DEVICE(MRVL_PCI_VENDOR_ID, MRVL_TL10_PCI_DEVICE_ID) },
-    { PCI_DEVICE(MRVL_PCI_VENDOR_ID, MRVL_TL12_PCI_DEVICE_ID) },
     { PCI_DEVICE(MRVL_PCI_VENDOR_ID, MRVL_T100_PCI_DEVICE_ID) },
     {                             0,                              },
 };
@@ -391,6 +388,7 @@ inno_rupt_mask(inno_device_t          *idev,
             }
             ipd_verbose("Writing INTR_INMS + %d; reg: 0x%x val: 0x%x\n",(i*4),  REG32(idev->inno_intr_regs.intr_inms + (i*4)), vec->mask[i]);
             REG32(idev->inno_intr_regs.intr_inms + i * 4) = vec->mask[i];
+            REG32(idev->inno_intr_regs.intr_incr + i * 4) = vec->mask[i];
         }
     }
 
@@ -1658,7 +1656,6 @@ inno_hi_watermark_enable(inno_device_t *idev)
     case INNO_TERALYNX_PCI_DEVICE_ID:
         REG32(HI_WATERMARK_IMSG_4) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_5) = hi_wmark_imsg.data;
-    case MRVL_TL12_PCI_DEVICE_ID:
         REG32(HI_WATERMARK_IMSG_0) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_1) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_2) = hi_wmark_imsg.data;
@@ -1700,7 +1697,6 @@ inno_hi_watermark_clear_reset(inno_device_t *idev, int log_err)
     case INNO_TERALYNX_PCI_DEVICE_ID:
         REG32(HI_WATERMARK_IMSG_4) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_5) = hi_wmark_imsg.data;
-    case MRVL_TL12_PCI_DEVICE_ID:
         REG32(HI_WATERMARK_IMSG_0) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_1) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_2) = hi_wmark_imsg.data;
@@ -1731,7 +1727,6 @@ inno_hi_watermark_clear_reset(inno_device_t *idev, int log_err)
     case INNO_TERALYNX_PCI_DEVICE_ID:
         REG32(HI_WATERMARK_IMSG_4) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_5) = hi_wmark_imsg.data;
-    case MRVL_TL12_PCI_DEVICE_ID:
         REG32(HI_WATERMARK_IMSG_0) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_1) = hi_wmark_imsg.data;
         REG32(HI_WATERMARK_IMSG_2) = hi_wmark_imsg.data;
@@ -1814,7 +1809,7 @@ inno_hi_watermark_clear_reset(inno_device_t *idev, int log_err)
             ipd_info("HI_WATERMARK_IMSG_5 is 0x%x, lvl_f: %d\n",
                      hi_wmark_imsg.data, hi_wmark_imsg.tl_flds.lvl_f);
         }
-    case MRVL_TL12_PCI_DEVICE_ID:
+
         /* Now read the watermarks */
         hi_wmark_imsg.data = REG32(HI_WATERMARK_IMSG_0);
         if (hi_wmark_imsg.tl_flds.lvl_f != 0) {
@@ -3249,29 +3244,7 @@ inno_ioctl(struct file   *f,
             return -EINVAL;
         }
 
-        if ((ioctl_query.serial_num == 0) || (ioctl_query.device_id == 0)) {
-            /* No serial number or device ID given - just attach in order */
-            idev = &inno_instances[ioctl_query.hdr.instance];
-        } else {
-            /* Scan  for a match */
-            int i;
-            idev = NULL;
-            for (i = 0; i < MAX_INNO_DEVICES; i++) {
-                if ((inno_instances[i].serial_num == ioctl_query.serial_num) &&
-                    (inno_instances[i].vendor_id == ioctl_query.vendor_id) &&
-                    (inno_instances[i].device_id == ioctl_query.device_id)) {
-                    idev = &inno_instances[i];
-                    break;
-                }
-            }
-
-            if (idev == NULL) {
-                return -EINVAL;
-            }
-
-            ioctl_query.hdr.instance = i;
-        }
-
+        ioctl_query.hdr.instance     = idev->id;
         ioctl_query.vendor_id        = idev->vendor_id;
         ioctl_query.device_id        = idev->device_id;
         ioctl_query.rev_id           = idev->rev_id;
@@ -3283,8 +3256,7 @@ inno_ioctl(struct file   *f,
          * to user space via mmap. For now, just override the bar0
          * variable here to minimize the changes in IFCS
          */
-        if ((idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
-            (idev->device_id == MRVL_T100_PCI_DEVICE_ID)) {
+        if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
             ioctl_query.bar0             = (off_t)idev->bar0_ba;
             ioctl_query.bar0_size        = idev->bar0_size;
             ioctl_query.bar2             = (off_t)idev->bar2_ba;
@@ -3992,7 +3964,6 @@ inno_ioctl(struct file   *f,
     return 0;
 }
 
-
 #define RUPT_OFFSET(word) INTR_TRIG_OFFSET_ ## word >> 5
 
 #define RUPT_WORD(word) rupt_mask[RUPT_OFFSET(word)]
@@ -4016,7 +3987,7 @@ inno_rupt_handler(int  irq, void *dev_id)
     inno_device_t       *idev = dev_id;
     unsigned long       flags;
     int                 i, j;
-    uint32_t            cur_rupts[RUPT_MASK_WORDS_MAX];
+    uint32_t            cur_rupts[RUPT_MASK_WORDS_MAX] = { 0 };
 
     /* Copy the interrupts from the WB or from the cause register if INTx is enabled */
     if (idev->intr_type & INNO_INTR_INTX_ENABLED) {
@@ -4463,7 +4434,10 @@ inno_probe(struct pci_dev             *pdev,
         idev->serial_num = (((uint64_t)high) << 32) | low;
     }
 
-        if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
+    if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
+        rupt_mask_words = 10;
+    }
+    else if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
         rupt_mask_words = 10;
     } else {
         rupt_mask_words = 8;
@@ -4486,8 +4460,7 @@ inno_probe(struct pci_dev             *pdev,
         return -ENOMEM;
     }
 
-    if ((idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
-        (idev->device_id == MRVL_T100_PCI_DEVICE_ID)) {
+    if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
         /* one time ATU config for BAR2 access */
         config_bar2_atu(idev);
 
@@ -4566,8 +4539,7 @@ inno_probe(struct pci_dev             *pdev,
     /* Set the PCIe stuff in the idev */
     idev->bar0_ba   = (void *)pci_resource_start(pdev, BAR_0);
     idev->bar0_size = pci_resource_len(pdev, BAR_0);
-    if ((idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
-        (idev->device_id == MRVL_T100_PCI_DEVICE_ID)) {
+    if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
         idev->bar2_ba   = (void *)pci_resource_start(pdev, BAR_2);
         idev->bar2_size = pci_resource_len(pdev, BAR_2);
     }
@@ -4628,17 +4600,13 @@ inno_probe(struct pci_dev             *pdev,
         goto dma_buf_fail;
     }
 
-    if (idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
-       msix_address_match_low.tl12_flds.msix_address_match_en_f = 1;
-       REG32(PCIE_MAC__MSIX_ADDRESS_MATCH_LOW_OFF) = msix_address_match_low.data;
-    } else if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
+    if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
        msix_address_match_low.t100_flds.msix_address_match_en_f = 1;
        REG32(PCIE_MAC__MSIX_ADDRESS_MATCH_LOW_OFF) = msix_address_match_low.data;
     }
 
     /* Set up the inno_intr regs */
     if ((idev->device_id == MRVL_TL10_PCI_DEVICE_ID) ||
-        (idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
         (idev->device_id == MRVL_T100_PCI_DEVICE_ID)) {
         idev->inno_intr_regs.intr_incr = INTR_INCR_1;
         idev->inno_intr_regs.intr_inmc = INTR_INMC_1;
@@ -5033,8 +5001,6 @@ inno_override_flow_control(inno_device_t  *idev , int enable)
         isn_read_pen(idev, 0, 0x00000540, 5, 33, &cpu_fc, 1);
     } else if(idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
         isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);
-    } else if(idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
-                /*isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);*/
     } else if(idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
                 /*isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);*/
     } else {
@@ -5055,9 +5021,6 @@ inno_override_flow_control(inno_device_t  *idev , int enable)
     } else if(idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
         isn_write_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);
         isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);
-    } else if(idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
-                /* isn_write_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);
-           isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);*/
     } else if(idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
                 /* isn_write_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);
            isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);*/
@@ -5238,19 +5201,6 @@ static int inno_cpu_block_init(inno_device_t *idev)
             iac_mem_init.tl10_flds.asc_comp5_f = 1;
             iac_mem_init.tl10_flds.asc_comp6_f = 1;
             iac_mem_init.tl10_flds.asc_comp7_f = 1;
-        } else if (idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
-            iac_mem_init.tl12_flds.bram_f = 1;
-            iac_mem_init.tl12_flds.asc_cmn_f = 1;
-            iac_mem_init.tl12_flds.asc_comp0_f = 1;
-            iac_mem_init.tl12_flds.asc_comp1_f = 1;
-            iac_mem_init.tl12_flds.asc_comp2_f = 1;
-            iac_mem_init.tl12_flds.asc_comp3_f = 1;
-            iac_mem_init.tl12_flds.asc_comp4_f = 1;
-            iac_mem_init.tl12_flds.asc_comp5_f = 1;
-            iac_mem_init.tl12_flds.asc_comp6_f = 1;
-            iac_mem_init.tl12_flds.asc_comp7_f = 1;
-            iac_mem_init.tl12_flds.asc_comp8_f = 1;
-            iac_mem_init.tl12_flds.asc_comp9_f = 1;
         } else if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
             iac_mem_init.t100_flds.bram_f = 1;
             iac_mem_init.t100_flds.asc_cmn_f = 1;
@@ -5285,8 +5235,7 @@ static int inno_cpu_block_init(inno_device_t *idev)
             REG32(DMA_RXE_SWITCH_TO_CPU_QUEUE_OFFSET) = 268;
         } else if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
             REG32(DMA_RXE_SWITCH_TO_CPU_QUEUE_OFFSET) = 524;
-        } else if ((idev->device_id == MRVL_TL12_PCI_DEVICE_ID) ||
-                   (idev->device_id == MRVL_T100_PCI_DEVICE_ID)) {
+        } else if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
             REG32(DMA_RXE_SWITCH_TO_CPU_QUEUE_OFFSET) = 528;
         } else {
             ipd_err("Invalid device: 0x%x\n", idev->device_id);
@@ -5502,9 +5451,6 @@ inno_hw_init (inno_device_t *idev)
     } else if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
         idev->chip_hdr_len     = INNO_TL10_CHIP_HDR_LEN;
         idev->chip_dbg_hdr_len = INNO_TL10_CHIP_DBG_HDR_LEN;
-    } else if (idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
-                idev->chip_hdr_len     = INNO_TL12_CHIP_HDR_LEN;
-        idev->chip_dbg_hdr_len = INNO_TL12_CHIP_DBG_HDR_LEN;
     } else if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
                 idev->chip_hdr_len     = INNO_T100_CHIP_HDR_LEN;
         idev->chip_dbg_hdr_len = INNO_T100_CHIP_DBG_HDR_LEN;

@@ -51,7 +51,7 @@ disclaimer.
 #endif
 
 #ifndef LDH_BASE_HEADER_SIZE
-#define LDH_BASE_HEADER_SIZE 4 /* In TL12 */
+#define LDH_BASE_HEADER_SIZE 4
 #endif
 
 #define LDH_MAX_HEADERS_SIZE (LDH_HEADER_MAX_SIZE*LDH_HEADER_MAX_NUM + LDH_BASE_HEADER_SIZE)
@@ -135,7 +135,9 @@ typedef struct {
 #define MSIX_VECTOR_LEARN  5               /* Learn rupts */
 #define MSIX_VECTOR_PIC    6               /* pic rupts */
 #define MSIX_VECTOR_RX_MCU0 7              /* RX ring MCU0 */
-#define NUM_MSIX_VECS      8
+#define MSIX_VECTOR_RX_MCU1 8              /* RX ring MCU1 */
+#define MSIX_VECTOR_TSENE  28              /* TSENE temperature change interrupt */
+#define NUM_MSIX_VECS      32
 
 typedef struct {
     inno_ioctl_hdr_t hdr;

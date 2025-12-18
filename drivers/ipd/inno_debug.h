@@ -110,12 +110,16 @@ inline static char *vec2str(int vector)
             return "rx";
         case MSIX_VECTOR_RX_MCU0:
             return "rx-mcu0";
+        case MSIX_VECTOR_RX_MCU1:
+            return "rx-mcu1";
         case MSIX_VECTOR_ERROR:
             return "err";
         case MSIX_VECTOR_LEARN:
             return "lrn";
         case MSIX_VECTOR_PIC:
             return "pic";
+        case MSIX_VECTOR_TSENE:
+            return "tsene";
         default:
             return "unk";
     }

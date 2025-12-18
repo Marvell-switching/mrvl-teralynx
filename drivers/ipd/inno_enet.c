@@ -1981,14 +1981,6 @@ inno_napi_init(inno_device_t  *idev)
         inno_populate_inno_hdr = inno_populate_inno_hdr_v2;
         inno_get_ssp           = inno_get_ssp_v2;
         inno_vf2_queue_set     = inno_vf2_queue_set_v2;
-     } else if(idev->device_id == MRVL_TL12_PCI_DEVICE_ID) {
-        
-        inno_unpack_ldh_header = inno_unpack_ldh_header_v3;
-        inno_debug_hdr_present = inno_debug_hdr_present_v3;
-        inno_unpack_ext_hdrs   = inno_unpack_ext_hdrs_v3;
-        inno_populate_inno_hdr = inno_populate_inno_hdr_v3;
-        inno_get_ssp           = inno_get_ssp_v3;
-        inno_vf2_queue_set     = inno_vf2_queue_set_v3;
      } else if(idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
         
         inno_unpack_ldh_header = inno_unpack_ldh_header_v4;
@@ -2050,9 +2042,9 @@ inno_netdev_create(inno_device_t  *idev,
 #pragma GCC diagnostic pop
     }else{
         if (idev->inno_netdev.single_interface) {
-            sprintf(name, "inno%d", idev->instance);
+            sprintf(name, "inno%d", idev->id);
         } else {
-            sprintf(name, "inno_%1.1d_%4.4d", idev->instance, ioctl->sysport);
+            sprintf(name, "inno_%1.1d_%4.4d", idev->id, ioctl->sysport);
         }
     }
 

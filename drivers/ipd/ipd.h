@@ -70,7 +70,6 @@ disclaimer.
 #define MRVL_PCI_VENDOR_ID             0x11ab
 #define INNO_TERALYNX_PCI_DEVICE_ID    0x1b58
 #define MRVL_TL10_PCI_DEVICE_ID        0x6000
-#define MRVL_TL12_PCI_DEVICE_ID        0x6401
 #define MRVL_T100_PCI_DEVICE_ID        0x6800
 #define INNO_DMA_MASK                  64
 #define INNO_TERALYNX_PCI_DEVICE_REV_ID_A0    0x0

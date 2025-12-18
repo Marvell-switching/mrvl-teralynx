@@ -280,6 +280,7 @@ extern pf2_3_v2_func_t g_func_pf2_3_v2;
 typedef struct pf1_1_v2_s {
     bitset_v2_t ipd1_f0;
     bitset_v2_t ipd1_f1;
+    bitset_v2_t ipd1_f13;
     bitset_v2_t ipd1_f2;
     bitset_v2_t ipd1_f3;
 } pf1_1_v2_t;
@@ -287,6 +288,7 @@ typedef struct pf1_1_v2_s {
 typedef struct pf1_1_v2_fields_s {
     uint32_t ipd1_f0[4];
     uint32_t ipd1_f1[4];
+    uint32_t ipd1_f13[4];
     uint32_t ipd1_f2[4];
     uint32_t ipd1_f3[4];
 } pf1_1_v2_fields_t;
@@ -318,6 +320,7 @@ typedef struct pf1_2_v2_s {
     bitset_v2_t ipd1_f0;
     bitset_v2_t ipd1_f1;
     bitset_v2_t ipd1_f5;
+    bitset_v2_t ipd1_f13;
     bitset_v2_t ipd1_f2;
     bitset_v2_t ipd1_f3;
 } pf1_2_v2_t;
@@ -327,6 +330,7 @@ typedef struct pf1_2_v2_fields_s {
     uint32_t ipd1_f0[4];
     uint32_t ipd1_f1[4];
     uint32_t ipd1_f5[4];
+    uint32_t ipd1_f13[4];
     uint32_t ipd1_f2[4];
     uint32_t ipd1_f3[4];
 } pf1_2_v2_fields_t;
@@ -357,6 +361,7 @@ typedef struct pf1_3_v2_s {
     bitset_v2_t ipd1_f4;
     bitset_v2_t ipd1_f0;
     bitset_v2_t ipd1_f6;
+    bitset_v2_t ipd1_f13;
     bitset_v2_t ipd1_f2;
     bitset_v2_t ipd1_f3;
 } pf1_3_v2_t;
@@ -365,6 +370,7 @@ typedef struct pf1_3_v2_fields_s {
     uint32_t ipd1_f4[4];
     uint32_t ipd1_f0[4];
     uint32_t ipd1_f6[4];
+    uint32_t ipd1_f13[4];
     uint32_t ipd1_f2[4];
     uint32_t ipd1_f3[4];
 } pf1_3_v2_fields_t;
@@ -396,6 +402,7 @@ typedef struct pf1_4_v2_s {
     bitset_v2_t ipd1_f0;
     bitset_v2_t ipd1_f5;
     bitset_v2_t ipd1_f6;
+    bitset_v2_t ipd1_f13;
     bitset_v2_t ipd1_f2;
     bitset_v2_t ipd1_f3;
 } pf1_4_v2_t;
@@ -405,6 +412,7 @@ typedef struct pf1_4_v2_fields_s {
     uint32_t ipd1_f0[4];
     uint32_t ipd1_f5[4];
     uint32_t ipd1_f6[4];
+    uint32_t ipd1_f13[4];
     uint32_t ipd1_f2[4];
     uint32_t ipd1_f3[4];
 } pf1_4_v2_fields_t;
