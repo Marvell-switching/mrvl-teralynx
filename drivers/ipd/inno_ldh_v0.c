@@ -268,6 +268,15 @@ inno_populate_inno_hdr_v0(inno_ldh_t         *ldh_hdr,
     default:
         ipd_debug("ipd unsupported, vf_type: %u\n",ldh->_u.ldh_fixed.vf_type_f);
     }
+
+
+    if (ldh->_u.vf0.ssp_f < NUM_SYSPORTS) {
+        if (port_table && port_table[ldh->_u.vf0.ssp_f].enabled) {
+            ih->lag = port_table[ldh->_u.vf0.ssp_f].lag_id;
+            ipd_debug("ipd lag updated, port: %d, lag_id: 0x%x\n", ldh->_u.vf0.ssp_f, ih->lag);
+        }
+    }
+
     ih->ext_type = ext_hdr_type;
     ih->ext_size = ext_hdrs_size;
 }

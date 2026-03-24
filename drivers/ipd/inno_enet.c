@@ -433,7 +433,7 @@ inno_enet_tx(struct sk_buff    *skb,
     for (frag_num = 0; ; frag_num++) {
         skb_frag_t            *frag;
 
-        if (frag_num > 100) {
+        if (frag_num >= MAX_SKB_FRAGS) {
             break;
         }
 
@@ -1955,10 +1955,11 @@ inno_napi_init(inno_device_t  *idev)
     enet->sysport = 0;
 
     /* Set up the NAPI polling */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
-    netif_napi_add(idev->ndev, &idev->napi, inno_ring_poll, 8);
-#else
+#if (LINUX_VERSION_CODE == KERNEL_VERSION(5, 14, 0)) || \
+    (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
     netif_napi_add_weight(idev->ndev, &idev->napi, inno_ring_poll, 8);
+#else
+    netif_napi_add(idev->ndev, &idev->napi, inno_ring_poll, 8);
 #endif
 
     napi_enable(&idev->napi);

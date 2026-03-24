@@ -348,6 +348,7 @@ typedef struct inno_device {
 
     uint32_t                msi_wa_vector;
     uint32_t                flags; /** Any flags to maintain; enum: inno_dev_flags_t */
+    uint32_t                bfd_flags; /** BFD runtime flags; enum: inno_bfd_flags_t */
 
     inno_stats_t            inno_stats;            /** Stats */
 
