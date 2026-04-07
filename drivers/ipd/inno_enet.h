@@ -99,6 +99,13 @@ typedef struct inno_enet_adapter {
     inno_device_t *idev;            /** Associated idevice */
 } inno_enet_adapter_t;
 
+typedef struct port_info_s {
+    uint32_t lag_id;
+    bool     enabled;
+} port_info_t;
+
+extern port_info_t *port_table;
+
 int
 inno_napi_deinit(inno_device_t  *idev);
 

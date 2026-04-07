@@ -74,6 +74,8 @@ static unsigned int inno_intr = INNO_IRQ_TYPE_BEST_EFFORT;
 module_param(inno_intr, uint, 0644);
 MODULE_PARM_DESC(inno_intr, "Interrupt mode: 1-BestEffort(default); 2-MSIX_only; 3-MSI_only; 4-INTX_only");
 
+port_info_t *port_table = NULL;
+
 uint32_t ipd_boottype = IPD_BOOTTYPE_COLD;
 module_param_named(boottype, ipd_boottype, uint, 0644);
 MODULE_PARM_DESC(boottype, "boot type(0-1)");
@@ -1903,6 +1905,7 @@ inno_alloc_learn(inno_device_t      *idev,
     uint32_t             msg_desc_cidx, msg_desc_pidx;
     uint32_t             msg_data_cidx, msg_data_pidx;
 
+    memset(&learn_size, 0, sizeof(learn_size));
     learn->count = ioctl->count;
 
     if (learn->flags & INNO_LEARN_INIT) {
@@ -3196,16 +3199,19 @@ inno_ioctl(struct file   *f,
     inno_ioctl_netlink_info_t     ioctl_netlink_info;
 #endif
     inno_ioctl_params_t           ioctl_params;
+    inno_ioctl_bfd_flags_t        ioctl_bfd_flags;
     inno_ioctl_flush_pkt_t        ioctl_flush_pkt;
     inno_ioctl_cfg_init_done_t    ioctl_cfg_init_done;
     inno_ioctl_flow_init_t        ioctl_flow_init;
     inno_ioctl_sflow_params_t     ioctl_sflow_params;
+    inno_ioctl_port_lag_t         ioctl_port_lag;
     int ret = 0;
 
     /* Extract device */
     idev = f->private_data;
 
     ipd_verbose("Ioctl $%p %x %p %p\n", (void *)IPD_INFO_NODES, cmd, (void *) arg, f);
+    ipd_verbose("IOCTL %x \n", _IOC_NR(cmd));
 
     switch (_IOC_NR(cmd)) {
     case _IOC_NR(IPD_INFO_NODES):
@@ -3880,6 +3886,41 @@ inno_ioctl(struct file   *f,
         /* ipd_err( "%s:TESTING, IPD set params - shim_gre_proto 0x%x rsvd %d\n", __FUNCTION__, ioctl_params.info.shim_gre_proto, ioctl_params.info.rsvd); */
         break;
 
+    case _IOC_NR(IPD_BFD_FLAGS_SET):
+        if (copy_from_user(&ioctl_bfd_flags, (inno_ioctl_bfd_flags_t *)arg,
+                           sizeof(inno_ioctl_bfd_flags_t))) {
+            return -EACCES;
+        }
+        if (ioctl_bfd_flags.hdr.instance > inno_num_devices) {
+            return -EINVAL;
+        }
+        if (ioctl_bfd_flags.hdr.version != IFCS_PCIE_IOCTL_VERSION) {
+            return -EINVAL;
+        }
+        ioctl_bfd_flags.mask &= IPD_BFD_FLAGS_SUPPORTED_MASK;
+        idev->bfd_flags = (idev->bfd_flags & ~ioctl_bfd_flags.mask) |
+                              (ioctl_bfd_flags.flags & ioctl_bfd_flags.mask);
+        break;
+
+    case _IOC_NR(IPD_BFD_FLAGS_GET):
+        if (copy_from_user(&ioctl_bfd_flags, (inno_ioctl_bfd_flags_t *)arg,
+                           sizeof(inno_ioctl_bfd_flags_t))) {
+            return -EACCES;
+        }
+        if (ioctl_bfd_flags.hdr.instance > inno_num_devices) {
+            return -EINVAL;
+        }
+        if (ioctl_bfd_flags.hdr.version != IFCS_PCIE_IOCTL_VERSION) {
+            return -EINVAL;
+        }
+        ioctl_bfd_flags.mask  = IPD_BFD_FLAGS_SUPPORTED_MASK;
+        ioctl_bfd_flags.flags = idev->bfd_flags;
+        if (copy_to_user((inno_ioctl_bfd_flags_t *)arg, &ioctl_bfd_flags,
+                         sizeof(inno_ioctl_bfd_flags_t))) {
+            return -EACCES;
+        }
+        break;
+
     case _IOC_NR(IPD_DMA_INIT):
         ret = inno_dma_init(idev);
         if (ret) {
@@ -3954,6 +3995,24 @@ inno_ioctl(struct file   *f,
 
         idev->inno_sflow_params_info.egress_sflow_mode = ioctl_sflow_params.egress_sflow_mode;
         ipd_debug("egress sflow mode is %d\n", ioctl_sflow_params.egress_sflow_mode);
+        break;
+
+    case _IOC_NR(IPD_PORT_LAG_UPDATE):
+
+        if (!port_table) {
+            return -ENODEV;
+        }
+        if (copy_from_user(&ioctl_port_lag, (inno_ioctl_port_lag_t *)arg,
+                           sizeof(inno_ioctl_port_lag_t))) {
+            return -EACCES;
+        }
+        if (ioctl_port_lag.port >= NUM_SYSPORTS) {
+            return -ERANGE;
+        }
+        port_table[ioctl_port_lag.port].lag_id  = ioctl_port_lag.lag_id;
+        port_table[ioctl_port_lag.port].enabled = ioctl_port_lag.enabled;
+        ipd_debug("IOCTL: lag_port update port_table[%d]=(lag=0x%x|ena:%d) \n", ioctl_port_lag.port,
+                  ioctl_port_lag.lag_id, ioctl_port_lag.enabled);
         break;
 
     default:
@@ -4993,7 +5052,7 @@ static int inno_intr_deinit(inno_device_t *idev)
 static int
 inno_override_flow_control(inno_device_t  *idev , int enable)
 {
-    uint32_t       cpu_fc;
+    uint32_t       cpu_fc = 0;
 
     /* Overrides flow control settings */
 
@@ -5044,8 +5103,13 @@ inno_cleanup_resources(inno_device_t  *idev )
     }
     ipd_debug("In %s", __FUNCTION__);
 
-    /* Overrides flow control settings and stops traffic to CPU*/
-    inno_override_flow_control(idev, 1);
+    /* Overrides flow control settings and stops traffic to CPU.*/
+
+    /* NOTE: Override is skipped when BFD-offload is enabled,
+     * allowing MCU to continue receiving traffic from peer devices. */
+    if ((idev->bfd_flags & IPD_BFD_FLAG_SKIP_CPU_PKT_OVERRIDE_ON_CLEANUP) == 0) {
+        inno_override_flow_control(idev, 1);
+    }
     inno_intr_deinit(idev);
     idev->inno_netdev.num_interfaces=0;
     for (i = 0; i < NUM_SYSPORTS; i++) {
@@ -5541,12 +5605,23 @@ inno_mmap(struct file           *fp,
     kvirt = vma->vm_pgoff << PAGE_SHIFT;;
 
     vma->vm_ops       = &inno_mmap_mem_ops;
+
+#if (LINUX_VERSION_CODE == KERNEL_VERSION(5, 14, 0)) || \
+    (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0))
+    vm_flags_set(vma, MMAP_VM_FLAGS);
+#else
     vma->vm_flags    |= MMAP_VM_FLAGS;
+#endif
 
     do {
         ipd_verbose("remap_pfn %p %p %p\n",(void *)start, (void *)kvirt, (void *) virt_to_phys((void *) kvirt));
 
-        vma->vm_flags |= MMAP_VM_FLAGS;
+#if (LINUX_VERSION_CODE == KERNEL_VERSION(5, 14, 0)) || \
+    (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0))
+        vm_flags_set(vma, MMAP_VM_FLAGS);
+#else
+        vma->vm_flags    |= MMAP_VM_FLAGS;
+#endif
 
         /* X86 systems have an I/O coherent cache;  PPC & ARM does not */
 #if !defined(__i386__) && !defined(__x86_64__)
@@ -5706,17 +5781,29 @@ inno_init_module(void)
     int rc;
 
     ipd_trace("%s \n", inno_driver_name);
-   rc = alloc_chrdev_region(&inno_major_dev, 0, MAX_INNO_DEVICES, IPD_DRIVER_NAME);
-   if (rc) {
-       ipd_err("Failed to allocate char dev region\n");
-       return rc;
-   }
 
-   inno_cl = class_create(THIS_MODULE, IPD_DRIVER_NAME);
-   if (IS_ERR(inno_cl)) {
-       ipd_err("Inno: Unable to create ipd class\n");
-       goto cl_fail;
-   }
+    port_table = kcalloc(NUM_SYSPORTS, sizeof(port_info_t), GFP_KERNEL);
+    if (!port_table) {
+        ipd_err("Failed to allocate port_table\n");
+        return -ENOMEM;
+    }
+
+    rc = alloc_chrdev_region(&inno_major_dev, 0, MAX_INNO_DEVICES, IPD_DRIVER_NAME);
+    if (rc) {
+        ipd_err("Failed to allocate char dev region\n");
+        goto port_free;
+    }
+
+#if (LINUX_VERSION_CODE == KERNEL_VERSION(5, 14, 0)) || \
+    (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0))
+    inno_cl = class_create(IPD_DRIVER_NAME);
+#else
+    inno_cl = class_create(THIS_MODULE, IPD_DRIVER_NAME);
+#endif
+    if (IS_ERR(inno_cl)) {
+        ipd_err("Inno: Unable to create ipd class\n");
+        goto cl_fail;
+    }
 
     rc = pci_register_driver(&inno_driver);
     if (rc) {
@@ -5732,6 +5819,9 @@ cdev_fail:
     class_destroy(inno_cl);
 cl_fail:
     unregister_chrdev_region(inno_major_dev, MAX_INNO_DEVICES);
+port_free:
+    kfree(port_table);
+    port_table = NULL;
     return rc;
 }
 
@@ -5749,6 +5839,8 @@ inno_exit_module(void)
     class_destroy(inno_cl);
     unregister_chrdev_region(inno_major_dev, MAX_INNO_DEVICES);
     idr_destroy(&ipd_idr);
+    kfree(port_table);
+    port_table = NULL;
     printk("%s exited\n", inno_driver_name);
 }
 

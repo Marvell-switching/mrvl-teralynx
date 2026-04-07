@@ -136,8 +136,8 @@ typedef struct {
 #define MSIX_VECTOR_PIC    6               /* pic rupts */
 #define MSIX_VECTOR_RX_MCU0 7              /* RX ring MCU0 */
 #define MSIX_VECTOR_RX_MCU1 8              /* RX ring MCU1 */
-#define MSIX_VECTOR_TSENE  28              /* TSENE temperature change interrupt */
-#define NUM_MSIX_VECS      32
+#define MSIX_VECTOR_TSENE   9              /* TSENE temperature change interrupt */
+#define NUM_MSIX_VECS      10
 
 typedef struct {
     inno_ioctl_hdr_t hdr;
@@ -372,6 +372,28 @@ typedef struct {
     int egress_sflow_mode;
 } inno_ioctl_sflow_params_t;
 
+/* BFD-specific runtime flags */
+typedef enum {
+    /* When set, IPD will not override CPU pkt interface traffic on cleanup/close
+     * Required for BFD offload warmboot to allow MCU to continue receiving CPU-bound punt traffic. */
+    IPD_BFD_FLAG_SKIP_CPU_PKT_OVERRIDE_ON_CLEANUP = (1u << 0),
+} inno_bfd_flags_t;
+
+#define IPD_BFD_FLAGS_SUPPORTED_MASK (IPD_BFD_FLAG_SKIP_CPU_PKT_OVERRIDE_ON_CLEANUP)
+
+typedef struct {
+    inno_ioctl_hdr_t hdr;
+    uint32_t         mask;   /* Which flags to modify/query */
+    uint32_t         flags;  /* New flag values (for masked bits) */
+} inno_ioctl_bfd_flags_t;
+
+/** Port LAG update for hostif driver port_table (sysport -> lag_id, enabled) */
+typedef struct {
+    uint32_t port;      /**< Sysport index */
+    uint32_t lag_id;    /**< LAG id (0 when disabling) */
+    uint32_t enabled;   /**< Non-zero if port is in LAG */
+} inno_ioctl_port_lag_t;
+
 /* Probes number of nodes */
 
 #define IPD_INFO_NODES    _IOR(IFCS_IPD_MAGIC, 1, inno_ioctl_nodes_t *)
@@ -465,5 +487,14 @@ typedef struct {
 
 /* Set ipd sflow params */
 #define IPD_SFLOW_SET_PARAMS     _IOW(IFCS_IPD_MAGIC, 40, int)
+
+/* Set IPD BFD runtime flags */
+#define IPD_BFD_FLAGS_SET        _IOWR(IFCS_IPD_MAGIC, 41, inno_ioctl_bfd_flags_t *)
+
+/* Get IPD BFD runtime flags */
+#define IPD_BFD_FLAGS_GET        _IOWR(IFCS_IPD_MAGIC, 42, inno_ioctl_bfd_flags_t *)
+
+/* Update port LAG info in driver port_table (replaces write path) */
+#define IPD_PORT_LAG_UPDATE     _IOW(IFCS_IPD_MAGIC, 43, inno_ioctl_port_lag_t *)
 
 #endif /* __IPD_IOCTL_H__ */

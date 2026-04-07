@@ -540,43 +540,6 @@ typedef union {
         uint32_t devicetimer_enable_f:1;
 #endif 
     } t100_flds;
-    struct tl12_cpu_ptp_control {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t devicetimer_enable_f:1;
-        uint32_t globaltimer_enable_f:1;
-        uint32_t fracns_count_enable_f:1;
-        uint32_t fracns_incr_load_f:1;
-        uint32_t fracns_halfclock_f:1;
-        uint32_t timers_snapshot_enable_f:1;
-        uint32_t globaltimer_offset_load_f:1;
-        uint32_t ppsout_en_f:1;
-        uint32_t serialtod_out_en_f:1;
-        uint32_t serialtod_bitperiod_f:4;
-        uint32_t pps_in_gpio_en_f:1;
-        uint32_t ts_wr_update_debug_f:3;
-        uint32_t clkout_ts_wr_update_debug_f:3;
-        uint32_t ptp_sel_clka_f:1;
-        uint32_t ptp_sel_clkb_f:1;
-        uint32_t rsvd:10;
-#else 
-        uint32_t rsvd:10;
-        uint32_t ptp_sel_clkb_f:1;
-        uint32_t ptp_sel_clka_f:1;
-        uint32_t clkout_ts_wr_update_debug_f:3;
-        uint32_t ts_wr_update_debug_f:3;
-        uint32_t pps_in_gpio_en_f:1;
-        uint32_t serialtod_bitperiod_f:4;
-        uint32_t serialtod_out_en_f:1;
-        uint32_t ppsout_en_f:1;
-        uint32_t globaltimer_offset_load_f:1;
-        uint32_t timers_snapshot_enable_f:1;
-        uint32_t fracns_halfclock_f:1;
-        uint32_t fracns_incr_load_f:1;
-        uint32_t fracns_count_enable_f:1;
-        uint32_t globaltimer_enable_f:1;
-        uint32_t devicetimer_enable_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_cpu_ptp_control {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t devicetimer_enable_f:1;
@@ -626,13 +589,6 @@ typedef union {
         uint32_t st_f:32;
 #endif 
     } t100_flds;
-    struct tl12_cpu_ptp_devicetimer_snapshot_31_0 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t st_f:32;
-#else 
-        uint32_t st_f:32;
-#endif 
-    } tl12_flds;
     struct tl10_cpu_ptp_devicetimer_snapshot_31_0 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t st_f:32;
@@ -654,15 +610,6 @@ typedef union {
         uint32_t st_f:16;
 #endif 
     } t100_flds;
-    struct tl12_cpu_ptp_devicetimer_snapshot_47_32 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t st_f:16;
-        uint32_t rsvd:16;
-#else 
-        uint32_t rsvd:16;
-        uint32_t st_f:16;
-#endif 
-    } tl12_flds;
     struct tl10_cpu_ptp_devicetimer_snapshot_47_32 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t st_f:16;
@@ -684,13 +631,6 @@ typedef union {
         uint32_t st_f:32;
 #endif 
     } t100_flds;
-    struct tl12_cpu_ptp_synchronizedtime_snapshot_ns_31_0 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t st_f:32;
-#else 
-        uint32_t st_f:32;
-#endif 
-    } tl12_flds;
     struct tl10_cpu_ptp_synchronizedtime_snapshot_ns_31_0 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t st_f:32;
@@ -710,13 +650,6 @@ typedef union {
         uint32_t st_f:32;
 #endif 
     } t100_flds;
-    struct tl12_cpu_ptp_synchronizedtime_snapshot_sec_31_0 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t st_f:32;
-#else 
-        uint32_t st_f:32;
-#endif 
-    } tl12_flds;
     struct tl10_cpu_ptp_synchronizedtime_snapshot_sec_31_0 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t st_f:32;
@@ -738,15 +671,6 @@ typedef union {
         uint32_t st_f:16;
 #endif 
     } t100_flds;
-    struct tl12_cpu_ptp_synchronizedtime_snapshot_sec_47_32 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t st_f:16;
-        uint32_t rsvd:16;
-#else 
-        uint32_t rsvd:16;
-        uint32_t st_f:16;
-#endif 
-    } tl12_flds;
     struct tl10_cpu_ptp_synchronizedtime_snapshot_sec_47_32 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t st_f:16;
@@ -964,15 +888,6 @@ typedef union {
         uint32_t cnfg_f:10;
 #endif 
     } t100_flds;
-    struct tl12_dma_rxe_switch_to_cpu_queue_offset {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t cnfg_f:10;
-        uint32_t rsvd:22;
-#else 
-        uint32_t rsvd:22;
-        uint32_t cnfg_f:10;
-#endif 
-    } tl12_flds;
     struct tl10_dma_rxe_switch_to_cpu_queue_offset {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t cnfg_f:10;
@@ -1190,19 +1105,6 @@ typedef union {
         uint32_t en_f:1;
 #endif 
     } t100_flds;
-    struct tl12_hi_watermark_imsg_0 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t en_f:1;
-        uint32_t clr_f:1;
-        uint32_t lvl_f:6;
-        uint32_t rsvd:24;
-#else 
-        uint32_t rsvd:24;
-        uint32_t lvl_f:6;
-        uint32_t clr_f:1;
-        uint32_t en_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_hi_watermark_imsg_0 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t en_f:1;
@@ -1248,19 +1150,6 @@ typedef union {
         uint32_t en_f:1;
 #endif 
     } t100_flds;
-    struct tl12_hi_watermark_imsg_1 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t en_f:1;
-        uint32_t clr_f:1;
-        uint32_t lvl_f:6;
-        uint32_t rsvd:24;
-#else 
-        uint32_t rsvd:24;
-        uint32_t lvl_f:6;
-        uint32_t clr_f:1;
-        uint32_t en_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_hi_watermark_imsg_1 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t en_f:1;
@@ -1306,19 +1195,6 @@ typedef union {
         uint32_t en_f:1;
 #endif 
     } t100_flds;
-    struct tl12_hi_watermark_imsg_2 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t en_f:1;
-        uint32_t clr_f:1;
-        uint32_t lvl_f:6;
-        uint32_t rsvd:24;
-#else 
-        uint32_t rsvd:24;
-        uint32_t lvl_f:6;
-        uint32_t clr_f:1;
-        uint32_t en_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_hi_watermark_imsg_2 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t en_f:1;
@@ -1364,19 +1240,6 @@ typedef union {
         uint32_t en_f:1;
 #endif 
     } t100_flds;
-    struct tl12_hi_watermark_imsg_3 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t en_f:1;
-        uint32_t clr_f:1;
-        uint32_t lvl_f:6;
-        uint32_t rsvd:24;
-#else 
-        uint32_t rsvd:24;
-        uint32_t lvl_f:6;
-        uint32_t clr_f:1;
-        uint32_t en_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_hi_watermark_imsg_3 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t en_f:1;
@@ -1422,19 +1285,6 @@ typedef union {
         uint32_t en_f:1;
 #endif 
     } t100_flds;
-    struct tl12_hi_watermark_imsg_4 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t en_f:1;
-        uint32_t clr_f:1;
-        uint32_t lvl_f:6;
-        uint32_t rsvd:24;
-#else 
-        uint32_t rsvd:24;
-        uint32_t lvl_f:6;
-        uint32_t clr_f:1;
-        uint32_t en_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_hi_watermark_imsg_4 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t en_f:1;
@@ -1480,19 +1330,6 @@ typedef union {
         uint32_t en_f:1;
 #endif 
     } t100_flds;
-    struct tl12_hi_watermark_imsg_5 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t en_f:1;
-        uint32_t clr_f:1;
-        uint32_t lvl_f:6;
-        uint32_t rsvd:24;
-#else 
-        uint32_t rsvd:24;
-        uint32_t lvl_f:6;
-        uint32_t clr_f:1;
-        uint32_t en_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_hi_watermark_imsg_5 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t en_f:1;
@@ -1538,19 +1375,6 @@ typedef union {
         uint32_t en_f:1;
 #endif 
     } t100_flds;
-    struct tl12_hi_watermark_imsg_6 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t en_f:1;
-        uint32_t clr_f:1;
-        uint32_t lvl_f:6;
-        uint32_t rsvd:24;
-#else 
-        uint32_t rsvd:24;
-        uint32_t lvl_f:6;
-        uint32_t clr_f:1;
-        uint32_t en_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_hi_watermark_imsg_6 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t en_f:1;
@@ -1583,19 +1407,6 @@ typedef union {
         uint32_t en_f:1;
 #endif 
     } t100_flds;
-    struct tl12_hi_watermark_imsg_7 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t en_f:1;
-        uint32_t clr_f:1;
-        uint32_t lvl_f:6;
-        uint32_t rsvd:24;
-#else 
-        uint32_t rsvd:24;
-        uint32_t lvl_f:6;
-        uint32_t clr_f:1;
-        uint32_t en_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_hi_watermark_imsg_7 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t en_f:1;
@@ -1769,37 +1580,6 @@ typedef union {
         uint32_t bram_f:1;
 #endif 
     } t100_flds;
-    struct tl12_iac_mem_init {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t bram_f:1;
-        uint32_t asc_cmn_f:1;
-        uint32_t asc_comp0_f:1;
-        uint32_t asc_comp1_f:1;
-        uint32_t asc_comp2_f:1;
-        uint32_t asc_comp3_f:1;
-        uint32_t asc_comp4_f:1;
-        uint32_t asc_comp5_f:1;
-        uint32_t asc_comp6_f:1;
-        uint32_t asc_comp7_f:1;
-        uint32_t asc_comp8_f:1;
-        uint32_t asc_comp9_f:1;
-        uint32_t rsvd_f:20;
-#else 
-        uint32_t rsvd_f:20;
-        uint32_t asc_comp9_f:1;
-        uint32_t asc_comp8_f:1;
-        uint32_t asc_comp7_f:1;
-        uint32_t asc_comp6_f:1;
-        uint32_t asc_comp5_f:1;
-        uint32_t asc_comp4_f:1;
-        uint32_t asc_comp3_f:1;
-        uint32_t asc_comp2_f:1;
-        uint32_t asc_comp1_f:1;
-        uint32_t asc_comp0_f:1;
-        uint32_t asc_cmn_f:1;
-        uint32_t bram_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_iac_mem_init {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t bram_f:1;
@@ -1879,25 +1659,6 @@ typedef union {
         uint32_t imsg6_hdr_err_f:1;
 #endif 
     } t100_flds;
-    struct tl12_intr_iac_1_cause {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t imsg6_hdr_err_f:1;
-        uint32_t imsg7_hdr_err_f:1;
-        uint32_t imsg6_perr_f:1;
-        uint32_t imsg7_perr_f:1;
-        uint32_t imsg6_rsp_switch_err_f:1;
-        uint32_t imsg7_rsp_switch_err_f:1;
-        uint32_t rsvd:26;
-#else 
-        uint32_t rsvd:26;
-        uint32_t imsg7_rsp_switch_err_f:1;
-        uint32_t imsg6_rsp_switch_err_f:1;
-        uint32_t imsg7_perr_f:1;
-        uint32_t imsg6_perr_f:1;
-        uint32_t imsg7_hdr_err_f:1;
-        uint32_t imsg6_hdr_err_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_intr_iac_1_cause {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t imsg6_hdr_err_f:1;
@@ -1942,25 +1703,6 @@ typedef union {
         uint32_t imsg6_hdr_err_f:1;
 #endif 
     } t100_flds;
-    struct tl12_intr_iac_1_pci_mask {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t imsg6_hdr_err_f:1;
-        uint32_t imsg7_hdr_err_f:1;
-        uint32_t imsg6_perr_f:1;
-        uint32_t imsg7_perr_f:1;
-        uint32_t imsg6_rsp_switch_err_f:1;
-        uint32_t imsg7_rsp_switch_err_f:1;
-        uint32_t rsvd:26;
-#else 
-        uint32_t rsvd:26;
-        uint32_t imsg7_rsp_switch_err_f:1;
-        uint32_t imsg6_rsp_switch_err_f:1;
-        uint32_t imsg7_perr_f:1;
-        uint32_t imsg6_perr_f:1;
-        uint32_t imsg7_hdr_err_f:1;
-        uint32_t imsg6_hdr_err_f:1;
-#endif 
-    } tl12_flds;
     struct tl10_intr_iac_1_pci_mask {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t imsg6_hdr_err_f:1;
@@ -2160,15 +1902,6 @@ typedef union {
         uint32_t vec_f:5;
 #endif 
     } t100_flds;
-    struct tl12_intr_immr_1 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t vec_f:5;
-        uint32_t rvsrd_f:27;
-#else 
-        uint32_t rvsrd_f:27;
-        uint32_t vec_f:5;
-#endif 
-    } tl12_flds;
     struct tl10_intr_immr_1 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t vec_f:5;
@@ -2204,13 +1937,6 @@ typedef union {
         uint32_t cause_f:32;
 #endif 
     } t100_flds;
-    struct tl12_intr_incr_1 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t cause_f:32;
-#else 
-        uint32_t cause_f:32;
-#endif 
-    } tl12_flds;
     struct tl10_intr_incr_1 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t cause_f:32;
@@ -2244,13 +1970,6 @@ typedef union {
         uint32_t clr_f:32;
 #endif 
     } t100_flds;
-    struct tl12_intr_inmc_1 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t clr_f:32;
-#else 
-        uint32_t clr_f:32;
-#endif 
-    } tl12_flds;
     struct tl10_intr_inmc_1 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t clr_f:32;
@@ -2284,13 +2003,6 @@ typedef union {
         uint32_t mask_f:32;
 #endif 
     } t100_flds;
-    struct tl12_intr_inms_1 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t mask_f:32;
-#else 
-        uint32_t mask_f:32;
-#endif 
-    } tl12_flds;
     struct tl10_intr_inms_1 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t mask_f:32;
@@ -2433,21 +2145,6 @@ typedef union {
         uint32_t xoff_0_f:7;
 #endif 
     } t100_flds;
-    struct tl12_learn_msg {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t xoff_0_f:6;
-        uint32_t xoff_1_f:6;
-        uint32_t xoff_2_f:6;
-        uint32_t xoff_3_f:6;
-        uint32_t rsvd:8;
-#else 
-        uint32_t rsvd:8;
-        uint32_t xoff_3_f:6;
-        uint32_t xoff_2_f:6;
-        uint32_t xoff_1_f:6;
-        uint32_t xoff_0_f:6;
-#endif 
-    } tl12_flds;
     struct tl10_learn_msg {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t xoff_0_f:6;
@@ -2503,21 +2200,6 @@ typedef union {
         uint32_t xoff_4_f:7;
 #endif 
     } t100_flds;
-    struct tl12_learn_msg_1 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t xoff_4_f:6;
-        uint32_t xoff_5_f:6;
-        uint32_t xoff_6_f:6;
-        uint32_t xoff_7_f:6;
-        uint32_t rsvd:8;
-#else 
-        uint32_t rsvd:8;
-        uint32_t xoff_7_f:6;
-        uint32_t xoff_6_f:6;
-        uint32_t xoff_5_f:6;
-        uint32_t xoff_4_f:6;
-#endif 
-    } tl12_flds;
     struct tl10_learn_msg_1 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t xoff_4_f:6;
@@ -2590,17 +2272,6 @@ typedef union {
         uint32_t msix_address_match_en_f:1;
 #endif 
     } t100_flds;
-    struct tl12_pcie_mac__msix_address_match_low_off {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t msix_address_match_en_f:1;
-        uint32_t msix_address_match_reserved_1_f:1;
-        uint32_t msix_address_match_low_f:30;
-#else 
-        uint32_t msix_address_match_low_f:30;
-        uint32_t msix_address_match_reserved_1_f:1;
-        uint32_t msix_address_match_en_f:1;
-#endif 
-    } tl12_flds;
     uint32_t data;
 } pcie_mac__msix_address_match_low_off_t;
 
@@ -5024,29 +4695,6 @@ typedef union {
         uint32_t cmd_f:3;
 #endif 
     } t100_flds;
-    struct tl12_sync_cmd_0 {
-#if PCI_STRUCT_FIELD_ORDER_LO_HI
-        uint32_t cmd_f:3;
-        uint32_t order_f:1;
-        uint32_t cmd3_f:1;
-        uint32_t gp_f:1;
-        uint32_t intr_en_f:1;
-        uint32_t btype_f:2;
-        uint32_t length_f:10;
-        uint32_t posted_wr_f:1;
-        uint32_t seqnum_f:12;
-#else 
-        uint32_t seqnum_f:12;
-        uint32_t posted_wr_f:1;
-        uint32_t length_f:10;
-        uint32_t btype_f:2;
-        uint32_t intr_en_f:1;
-        uint32_t gp_f:1;
-        uint32_t cmd3_f:1;
-        uint32_t order_f:1;
-        uint32_t cmd_f:3;
-#endif 
-    } tl12_flds;
     struct tl10_sync_cmd_0 {
 #if PCI_STRUCT_FIELD_ORDER_LO_HI
         uint32_t cmd_f:3;
