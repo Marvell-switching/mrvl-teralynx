@@ -280,7 +280,7 @@ inno_enet_tx(struct sk_buff    *skb,
 
     if (sysport >= NUM_SYSPORTS) {
         spin_unlock_irqrestore(&idev->lock, lock_flags);
-        ipd_err("Invalid sysport %d\n",sysport);
+        ipd_debug("Invalid sysport %d\n",sysport);
         idev->inno_stats.tx_ring_stats[tx_ring->num].drops++;
         if (ipd_loglevel >= IPD_LOGLEVEL_DEBUG){
             packet_hex_dump(skb);
@@ -298,7 +298,7 @@ inno_enet_tx(struct sk_buff    *skb,
     /* Sysport not initialized */
     if(idev->syshdr1_cnt[sysport] == 0) {
         spin_unlock_irqrestore(&idev->lock, lock_flags);
-        ipd_err("Invalid sysport %d\n",sysport);
+        ipd_debug("Invalid sysport %d\n",sysport);
         idev->inno_stats.tx_ring_stats[tx_ring->num].drops++;
         if (ipd_loglevel >= IPD_LOGLEVEL_DEBUG){
             packet_hex_dump(skb);
@@ -1991,7 +1991,7 @@ inno_napi_init(inno_device_t  *idev)
         inno_get_ssp           = inno_get_ssp_v4;
         inno_vf2_queue_set     = inno_vf2_queue_set_v4;
     } else {
-        ipd_err("Unknown innovium device\n");
+        ipd_err("Unknown Marvell device\n");
         return -ENODEV;
     }
 
