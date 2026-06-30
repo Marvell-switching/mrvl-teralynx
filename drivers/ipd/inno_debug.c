@@ -54,12 +54,12 @@ ipd_info_r( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
-    len = scnprintf(buf,PAGE_SIZE,"Innovium Platform Driver Version - %s\n",ipd_version);
-    len += scnprintf(buf+len,PAGE_SIZE-len,"Innovium Device Info:\n");
+    len = scnprintf(buf,PAGE_SIZE,"Marvell Platform Driver Version - %s\n",ipd_version);
+    len += scnprintf(buf+len,PAGE_SIZE-len,"Marvell Device Info:\n");
     for(i=0;i<inno_max_dev;i++){
         if(idev[i].vendor_id != 0) {
             len += scnprintf(buf+len,PAGE_SIZE-len,"Chip - %d\n",idev[i].instance);
@@ -85,7 +85,7 @@ ring_stat_r( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
@@ -145,7 +145,7 @@ ring_stat_w( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
@@ -176,7 +176,7 @@ interrupt_stat_r( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
@@ -205,7 +205,7 @@ interrupt_stat_w( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
@@ -233,7 +233,7 @@ loglevel_r( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
@@ -260,7 +260,7 @@ loglevel_w( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
@@ -289,7 +289,7 @@ tx_stat_r( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
@@ -314,7 +314,7 @@ tx_stat_w( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
@@ -342,7 +342,7 @@ wb_stat_r( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
@@ -373,7 +373,7 @@ wb_stat_w( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
@@ -404,7 +404,7 @@ genl_stats_r( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 
@@ -436,7 +436,7 @@ genl_stats_w( struct device * dev,
 
     idev = dev_get_drvdata(dev);
     if(idev == NULL) {
-        ipd_err("Innovium device info not found");
+        ipd_err("Marvell device info not found\n");
         return -EINVAL;
     }
 

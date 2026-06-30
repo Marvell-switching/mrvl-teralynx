@@ -162,6 +162,9 @@ typedef struct inno_rupt_vector_s {
     wait_queue_head_t wait_q;                    /** Rupt ioctl waitQ */
 } inno_rupt_vector_t;
 
+#define INNO_RUPT_WAIT_WAKEUP   0x01        /* Wake up the interrupt thread */
+#define INNO_RUPT_WAIT_EXIT     0x02        /* Exit interrupt thread */
+
 /** @brief Interrupt registers */
 typedef struct inno_intr_regs_s{
     uint32_t         intr_incr;

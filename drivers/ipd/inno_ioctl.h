@@ -143,7 +143,11 @@ typedef struct {
     inno_ioctl_hdr_t hdr;
     uint16_t vector;                        /** Vector number */
     uint32_t mask[RUPT_MASK_WORDS_MAX];     /** Rupts to wait/fired */
+    int flag;                               /** Flag */
 } inno_ioctl_rupt_mask_t;
+
+#define INNO_IOCTL_RUPT_MASK_CLEAR  0x01    /* Set or clear the mask */
+#define INNO_IOCTL_RUPT_MASK_EXIT   0x02    /* Indicate waiting thread should exit */
 
 typedef struct {
     inno_ioctl_hdr_t hdr;

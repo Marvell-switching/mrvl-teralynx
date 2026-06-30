@@ -280,7 +280,7 @@ inno_enet_tx(struct sk_buff    *skb,
 
     if (sysport >= NUM_SYSPORTS) {
         spin_unlock_irqrestore(&idev->lock, lock_flags);
-        ipd_err("Invalid sysport %d\n",sysport);
+        ipd_debug("Invalid sysport %d\n",sysport);
         idev->inno_stats.tx_ring_stats[tx_ring->num].drops++;
         if (ipd_loglevel >= IPD_LOGLEVEL_DEBUG){
             packet_hex_dump(skb);
@@ -298,7 +298,7 @@ inno_enet_tx(struct sk_buff    *skb,
     /* Sysport not initialized */
     if(idev->syshdr1_cnt[sysport] == 0) {
         spin_unlock_irqrestore(&idev->lock, lock_flags);
-        ipd_err("Invalid sysport %d\n",sysport);
+        ipd_debug("Invalid sysport %d\n",sysport);
         idev->inno_stats.tx_ring_stats[tx_ring->num].drops++;
         if (ipd_loglevel >= IPD_LOGLEVEL_DEBUG){
             packet_hex_dump(skb);
@@ -1184,7 +1184,7 @@ inno_rx_ring_poll(struct napi_struct *napi,
         int               copy_len  = 0;
         int               block_len  = 0;
         inno_ldh_t        ldh;
-        uint64_t          *wb_ptr;
+        uint64_t          wb_bits;
         uint8_t           ext_info_hdrs[EXT_HDRS_MAX_LEN];
         uint8_t           ext_hdr_type = 0;
 
@@ -1195,7 +1195,6 @@ inno_rx_ring_poll(struct napi_struct *napi,
 
         memset(&ldh,0,LDH_HEADER_MAX_SIZE);
 
-        wb_ptr = (uint64_t*)&wb;
         /* Find the SOP bit (should be the first one!) */
         do {
             memcpy(&wb, &rx->rx_wb[RING_IDX_MASKED(rx->cidx)],
@@ -1209,7 +1208,9 @@ inno_rx_ring_poll(struct napi_struct *napi,
             } else if (wb.sop) {
                 break;
             }
-            ipd_err("RX WB w/o expected SOP - index %x wb-%llx\n", rx->cidx, *wb_ptr);
+            memcpy(&wb_bits, &wb, sizeof(wb_bits));
+            ipd_err("RX WB w/o expected SOP - index %x wb-%llx\n",
+                    rx->cidx, (unsigned long long)wb_bits);
 
             RING_IDX_INCR(rx->count, rx->cidx);
             idev->inno_stats.rx_ring_stats[rx->num].descs++;
@@ -1991,7 +1992,7 @@ inno_napi_init(inno_device_t  *idev)
         inno_get_ssp           = inno_get_ssp_v4;
         inno_vf2_queue_set     = inno_vf2_queue_set_v4;
     } else {
-        ipd_err("Unknown innovium device\n");
+        ipd_err("Unknown Marvell device\n");
         return -ENODEV;
     }
 

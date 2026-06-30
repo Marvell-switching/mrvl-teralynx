@@ -128,7 +128,7 @@ int exit_evt_thread_hndlr = 0;
 int evt_thread_timer = 1000;
 struct task_struct *evt_thread;
 #endif
-static char inno_driver_name[] = "Innovium Switch PCIe Driver";
+static char inno_driver_name[] = "Marvell Switch PCIe Driver";
 
 pci_ers_result_t
 inno_error_detected(struct pci_dev  *dev,
@@ -353,6 +353,7 @@ inno_rupt_mask(inno_device_t          *idev,
     int                i;
     inno_rupt_vector_t *vec = &idev->rupts[ioctl_mask->vector];
     uint16_t           msix_num;
+    unsigned long      irq_flags;
 
     if (ioctl_mask->vector >= NUM_MSIX_VECS) {
         return -EINVAL;
@@ -370,7 +371,24 @@ inno_rupt_mask(inno_device_t          *idev,
         msix_num = idev->msi_wa_vector;
     }
 
+    spin_lock_irqsave(&idev->rupt_lock, irq_flags);
+
     for (i = 0; i < rupt_mask_words; i++) {
+        if (ioctl_mask->flag & INNO_IOCTL_RUPT_MASK_CLEAR) {
+            uint32_t mask = ioctl_mask->mask[i];
+
+            if (mask != 0) {
+                /* Disable and clear any existing ones */
+                ipd_verbose("Writing INTR_INMC(0x%x) + i*4; reg: 0x%x val: 0x%x\n", idev->inno_intr_regs.intr_inmc, (idev->inno_intr_regs.intr_inmc + i*4), mask);
+                ipd_verbose("Writing INTR_INCR(0x%x) + i*4; reg: 0x%x val: 0x%x\n", idev->inno_intr_regs.intr_incr, (idev->inno_intr_regs.intr_incr + i*4), mask);
+                REG32(idev->inno_intr_regs.intr_inmc + i * 4) = mask;
+                REG32(idev->inno_intr_regs.intr_incr + i * 4) = mask;
+                /* Clear the mask bits */
+                vec->mask[i] &= ~mask;
+            }
+            continue;
+        }
+
         if (vec->mask[i] != 0) {
             /* Disable and clear any existing ones */
             ipd_verbose("Writing INTR_INMC(0x%x) + i*4; reg: 0x%x val: 0x%x\n", idev->inno_intr_regs.intr_inmc, (idev->inno_intr_regs.intr_inmc + i*4), vec->mask[i]);
@@ -394,8 +412,14 @@ inno_rupt_mask(inno_device_t          *idev,
         }
     }
 
+    if (ioctl_mask->flag & INNO_IOCTL_RUPT_MASK_EXIT) {
+        vec->flag = INNO_RUPT_WAIT_EXIT;
+    } else {
+        vec->flag = INNO_RUPT_WAIT_WAKEUP;
+    }
+    spin_unlock_irqrestore(&idev->rupt_lock, irq_flags);
+
     /* One wakeup for a changed mask */
-    vec->flag = 1;
     wake_up_interruptible(&vec->wait_q);
 
     return 0;
@@ -412,9 +436,9 @@ static int
 inno_rupt_wait(inno_device_t          *idev,
                inno_ioctl_rupt_wait_t *ioctl_wait)
 {
-    unsigned long      flags;
+    unsigned long      irq_flags;
     int                j;
-    int                no_rupts;
+    int                wait_flag;
 
     inno_rupt_vector_t *vec = &idev->rupts[ioctl_wait->vector];
 
@@ -429,19 +453,13 @@ inno_rupt_wait(inno_device_t          *idev,
     ipd_verbose("Waiting for irq %x %x\n", vec->vector, vec->mask[0]);
 
     /* Enable the interrupts */
-    spin_lock_irqsave(&idev->rupt_lock, flags);
-    no_rupts = 1;
+    spin_lock_irqsave(&idev->rupt_lock, irq_flags);
     for (j = 0; j < rupt_mask_words; j++) {
         if (vec->mask[j] != 0) {
-            no_rupts = 0;
             REG32(idev->inno_intr_regs.intr_inms + j * 4) = vec->mask[j];
         }
     }
-    spin_unlock_irqrestore(&idev->rupt_lock, flags); /* Release the lock */
-
-    if (no_rupts == 1) {
-        return -EPERM;
-    }
+    spin_unlock_irqrestore(&idev->rupt_lock, irq_flags); /* Release the lock */
 
     if (ioctl_wait->timeout) {
         ioctl_wait->remaining_time =
@@ -452,14 +470,15 @@ inno_rupt_wait(inno_device_t          *idev,
         wait_event_interruptible(vec->wait_q, vec->flag != 0);
     }
 
-    spin_lock_irqsave(&idev->rupt_lock, flags);
+    spin_lock_irqsave(&idev->rupt_lock, irq_flags);
+    wait_flag = vec->flag;
     vec->flag = 0;
     memcpy(ioctl_wait->rupts, vec->pend, rupt_mask_words * 4);
-    spin_unlock_irqrestore(&idev->rupt_lock, flags); /* Release the lock */
+    spin_unlock_irqrestore(&idev->rupt_lock, irq_flags); /* Release the lock */
 
     ipd_verbose("Rupt wait exit %x %x %x\n", vec->vector, vec->mask[0], REG32(idev->inno_intr_regs.intr_inms));
 
-    return 0;
+    return (wait_flag & INNO_RUPT_WAIT_EXIT) ? -EPERM : 0;
 }
 
 /** @brief Tx queue enable function
@@ -1101,7 +1120,6 @@ inno_alloc_ring(inno_device_t     *idev,
         }
     } else {
         rxq_0_t                       rxq_reg                       = {{0}};
-        rxq_0_sch_t                   rxq_sch                       = {{0}};
         rxq_0_cidx_update_t           rxq_cidx_update_reg           = {{0}};
         rxq_0_cidx_update_cliff_t     rxq_cidx_update_cliff_reg     = {{0}};
         rxq_0_cidx_update_prescaler_t rxq_cidx_update_prescaler_reg = {{0}};
@@ -1187,11 +1205,6 @@ inno_alloc_ring(inno_device_t     *idev,
         REG32(RXQ_x_CIDX_WB_HSN_LO(ring->num)) =
             (idev->pool_ba + ring->idx_offset) & 0xffffffff;
         REG32(RXQ_x_DESC_RING(ring->num)) = ring->count;
-
-        /* Set the scheduler for this ring */
-        rxq_sch.flds.weight_f = 5;
-        rxq_sch.flds.strict_priority_f = 0;
-        REG32(RXQ_x_SCH(ring->num)) = rxq_sch.data;
 
         /* Enable RXQ */
         if (ioctl->flags & INNO_RING_NETDEV) {
@@ -1664,7 +1677,7 @@ inno_hi_watermark_enable(inno_device_t *idev)
         REG32(HI_WATERMARK_IMSG_3) = hi_wmark_imsg.data;
         break;
     default:
-        ipd_err("Unknown innovium device in inno_hi_watermark_enable\n");
+        ipd_err("Unknown Marvell device in inno_hi_watermark_enable\n");
         return -ENODEV;
     }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
@@ -1705,7 +1718,7 @@ inno_hi_watermark_clear_reset(inno_device_t *idev, int log_err)
         REG32(HI_WATERMARK_IMSG_3) = hi_wmark_imsg.data;
         break;
     default:
-        ipd_err("Unknown innovium device in inno_hi_watermark_clear_reset\n");
+        ipd_err("Unknown Marvell device in inno_hi_watermark_clear_reset\n");
         return -ENODEV;
     }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
@@ -1735,7 +1748,7 @@ inno_hi_watermark_clear_reset(inno_device_t *idev, int log_err)
         REG32(HI_WATERMARK_IMSG_3) = hi_wmark_imsg.data;
         break;
     default:
-        ipd_err("Unknown innovium device in inno_hi_watermark_clear_reset\n");
+        ipd_err("Unknown Marvell device in inno_hi_watermark_clear_reset\n");
         return -ENODEV;
     }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
@@ -1875,7 +1888,7 @@ inno_hi_watermark_clear_reset(inno_device_t *idev, int log_err)
         }
     break;
     default:
-        ipd_err("Unknown innovium device in inno_hi_watermark_clear_reset\n");
+        ipd_err("Unknown Marvell device in inno_hi_watermark_clear_reset\n");
         return -ENODEV;
     }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
@@ -4080,7 +4093,7 @@ inno_rupt_handler(int  irq, void *dev_id)
                 REG32(idev->inno_intr_regs.intr_inmc + j * 4) = idev->rupts[i].mask[j];
                 if (idev->rupts[i].flag == 0) {
                     /* Need to kick this thread */
-                    idev->rupts[i].flag = 1;
+                    idev->rupts[i].flag = INNO_RUPT_WAIT_WAKEUP;
                     idev->inno_stats.inno_rupt_stats.num_int[i]++;
                     wake_up_interruptible(&idev->rupts[i].wait_q);
                 }
@@ -4121,7 +4134,7 @@ int evt_thread_hndlr(void *dev_id)
                                 REG32(idev->inno_intr_regs.intr_inmc + j * 4) = idev->rupts[i].mask[j];
                                 if (idev->rupts[i].flag == 0) {
                                     /* Need to kick this thread */
-                                    idev->rupts[i].flag = 1;
+                                    idev->rupts[i].flag = INNO_RUPT_WAIT_WAKEUP;
                                     ipd_debug("Waking up rupts[%d].wait_q %s\n", i, idev->msix_names[i]);
                                     wake_up_interruptible(&idev->rupts[i].wait_q);
                                 }
@@ -5030,7 +5043,7 @@ static int inno_intr_deinit(inno_device_t *idev)
                 /* Kickstart any waiters */
                 spin_lock_irqsave(&idev->rupt_lock, flags);
                 idev->rupts[vector].vector = 0;
-                idev->rupts[vector].flag = 1;
+                idev->rupts[vector].flag = INNO_RUPT_WAIT_EXIT;
                 wake_up_interruptible(&idev->rupts[vector].wait_q);
                 spin_unlock_irqrestore(&idev->rupt_lock, flags);
             }
@@ -5064,7 +5077,7 @@ inno_override_flow_control(inno_device_t  *idev , int enable)
                 /*isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);*/
     } else {
 
-        ipd_err("Unknown innovium device\n");
+        ipd_err("Unknown Marvell device\n");
     }
 
     ipd_info("CPU pkt override before write value is %08x\n", cpu_fc);
@@ -5085,7 +5098,7 @@ inno_override_flow_control(inno_device_t  *idev , int enable)
            isn_read_pen(idev, 0, 0x10000a80, 5, 65, &cpu_fc, 1);*/
     } else {
 
-        ipd_err("Unknown innovium device\n");
+        ipd_err("Unknown Marvell device\n");
     }
     ipd_info("CPU pkt override after write value is %08x\n", cpu_fc);
 
