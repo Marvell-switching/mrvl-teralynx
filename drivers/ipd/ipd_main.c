@@ -82,8 +82,6 @@ MODULE_PARM_DESC(boottype, "boot type(0-1)");
 
 
 
-extern void inno_sysfs_init(inno_device_t  *idev, int max_device);
-extern void inno_sysfs_deinit(void);
 uint16_t rupt_mask_words = 0;
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
@@ -163,7 +161,7 @@ uint32_t inno_rxq_int[] = {11, 12, 13, 14, 15, 16, 17, 18};
 uint32_t inno_txq_int[] = {4, 5, 6, 7, 8, 9, 10};
 
 /* PCI driver for Innovium Nodes*/
-const static struct pci_error_handlers inno_pci_error =
+static const struct pci_error_handlers inno_pci_error =
 {
     .error_detected = inno_error_detected,
     .mmio_enabled   = NULL,
@@ -250,7 +248,7 @@ inno_get_phys_addr(inno_device_t *idev, volatile void *va, dma_addr_t ba)
 #endif
 }
 
-void
+static void
 pen_addr(uint32_t ib, uint32_t addr, uint32_t cmpid,
               uint32_t index, uint32_t *addr_hi, uint32_t *addr_lo)
 {
@@ -264,7 +262,7 @@ pen_addr(uint32_t ib, uint32_t addr, uint32_t cmpid,
     }
 }
 
-int
+static int
 isn_read_pen(inno_device_t  *idev, uint32_t ib, uint32_t addr, uint32_t cmpid,
                  uint32_t index, uint32_t *data, int data_size_bytes)
 {
@@ -301,7 +299,7 @@ isn_read_pen(inno_device_t  *idev, uint32_t ib, uint32_t addr, uint32_t cmpid,
     return 0;
 }
 
-int
+static int
 isn_write_pen(inno_device_t  *idev, uint32_t ib, uint32_t addr,
                   uint32_t cmpid, uint32_t index, uint32_t *data,
                   int data_size_bytes)
@@ -783,6 +781,8 @@ refill_ring(inno_device_t  *idev,
             }
             RING_IDX_INCR(rx->count, pidx);
             rxq_pidx.flds.num_f = pidx;
+            /* Make sure coherent memory(ring) is updated before ringing the doorbell to the device. */
+            dma_wmb();
             REG32(RXQ_x_DESC_PIDX(ring_num)) = rxq_pidx.data;
         }
     }
@@ -910,7 +910,7 @@ inno_alloc_ring(inno_device_t     *idev,
                 inno_ioctl_ring_t *ioctl)
 {
     inno_ring_t   *ring;
-    struct device *dev = NULL;
+    struct device *dev = &idev->pdev->dev;
     int           ring_size;
     int           rc = 0;
     int           msix_vector;
@@ -944,7 +944,6 @@ inno_alloc_ring(inno_device_t     *idev,
 
     if (ioctl->flags & INNO_RING_NETDEV) {
         ring->flags |= INNO_RING_NETDEV;
-        dev          = &idev->pdev->dev;
         if (ioctl->flags & INNO_RING_TX) {
             idev->enet_tx_ring_num = ring->num;
             idev->napi_mask[0] |= 1 << inno_txq_int[ring->num];
@@ -1033,10 +1032,49 @@ inno_alloc_ring(inno_device_t     *idev,
                                   GFP_KERNEL);
 
         if (ring->pages == NULL) {
+            if (ring->desc_info != NULL) {
+                kfree(ring->desc_info);
+                ring->desc_info = NULL;
+            }
+            dma_free_coherent(dev, ring_size,
+                    ring->rx_wb, ring->wb_ba);
+            dma_free_coherent(dev, ring_size,
+                    ring->rx_desc, ring->desc_ba);
+            if (ring->flags & INNO_RING_TX) {
+                dma_free_coherent(dev, ioctl->count * MIN_PACKET_SIZE,
+                        ring->tx_cksum, ring->tx_cksum_ba);
+            }
             return -ENOMEM;
         }
 
         memset(ring->pages, 0, ring->count * sizeof(inno_dma_alloc_t));
+    }
+
+    /* TX rings can also send zero-copy packets, whose pinned user pages are
+     * tracked in a separate array so they are never confused with the static
+     * buffers in ring->pages (different ownership/free semantics). */
+    if ((ring->flags & INNO_RING_TX) && (ring->upages == NULL)) {
+        ring->upages = (inno_dma_alloc_t *)
+                           kmalloc(ring->count * sizeof(inno_dma_alloc_t),
+                                   GFP_KERNEL);
+
+        if (ring->upages == NULL) {
+            kfree(ring->pages);
+            ring->pages = NULL;
+            if (ring->desc_info != NULL) {
+                kfree(ring->desc_info);
+                ring->desc_info = NULL;
+            }
+            dma_free_coherent(dev, ring_size,
+                    ring->rx_wb, ring->wb_ba);
+            dma_free_coherent(dev, ring_size,
+                    ring->rx_desc, ring->desc_ba);
+            dma_free_coherent(dev, ioctl->count * MIN_PACKET_SIZE,
+                    ring->tx_cksum, ring->tx_cksum_ba);
+            return -ENOMEM;
+        }
+
+        memset(ring->upages, 0, ring->count * sizeof(inno_dma_alloc_t));
     }
 
     ring->idev = idev;
@@ -1291,10 +1329,12 @@ inno_free_ring(inno_device_t *idev,
     if (ring->pages != NULL) {
         if (tx) {
             int i;
-            /* Unpin TX pages */
+            /* Release the statically allocated TX buffers */
             for (i = 0; i < ring->count; i++) {
-                if (ring->pages[i].page != NULL) {
-                    put_page(ring->pages[i].page);
+                if (ring->pages[i].dma_addr != 0) {
+                    dma_unmap_page(&idev->pdev->dev, ring->pages[i].dma_addr,
+                                   PAGE_SIZE, DMA_TO_DEVICE);
+                    __free_page(ring->pages[i].page);
                     memset(&ring->pages[i], 0, sizeof(inno_dma_alloc_t));
                 }
             }
@@ -1314,6 +1354,22 @@ inno_free_ring(inno_device_t *idev,
         kfree(ring->pages);
         ring->pages = NULL;
     }
+
+    /* Release any zero-copy pinned user pages */
+    if (ring->upages != NULL) {
+        int i;
+        for (i = 0; i < ring->count; i++) {
+            if (ring->upages[i].page != NULL) {
+                dma_unmap_page(&idev->pdev->dev, ring->upages[i].dma_addr,
+                               PAGE_SIZE, DMA_TO_DEVICE);
+                put_page(ring->upages[i].page);
+                memset(&ring->upages[i], 0, sizeof(inno_dma_alloc_t));
+            }
+        }
+        kfree(ring->upages);
+        ring->upages = NULL;
+    }
+
     dev = &idev->pdev->dev;
 
     if (ring->flags & INNO_RING_NETDEV) {
@@ -2207,6 +2263,8 @@ inno_tx_send(inno_device_t        *idev,
     uint32_t    offset;
     uint32_t    rem_len;
     uint16_t    nr_pages;
+    inno_dma_alloc_t *src_pages;  /* Source buffer array (static or zero-copy) */
+    uint8_t     is_last_page = 0;
 
     if (tx->flags & INNO_RING_NETDEV) {
         return -EINVAL;
@@ -2245,19 +2303,18 @@ inno_tx_send(inno_device_t        *idev,
             return -ENOMEM;
         }
 
-        /* Copy the page info to the ring page struct */
+        /* Store the pinned user pages in the dedicated user-pages array */
         lpidx = tx->pidx;
         for (i = 0; i < nr_pages; i++) {
-            inno_dma_alloc_t *alloc = &tx->pages[RING_IDX_MASKED(lpidx)];
+            inno_dma_alloc_t *alloc = &tx->upages[RING_IDX_MASKED(lpidx)];
             int rc = 0;
 
             /* Get the physical addr */
             alloc->dma_addr = dma_map_page(&idev->pdev->dev, pages[i],
                     0, PAGE_SIZE, DMA_TO_DEVICE);
-            if (dma_mapping_error(&idev->pdev->dev, alloc->dma_addr)) {
+            if ((rc = dma_mapping_error(&idev->pdev->dev, alloc->dma_addr))) {
                 ipd_err("tx_send dma_map err i:%d offset:%u len:%u \n",
                         i, 0, (unsigned)PAGE_SIZE);
-                return -1;
             }
 
             if(rc < 0) {
@@ -2296,41 +2353,13 @@ inno_tx_send(inno_device_t        *idev,
             return -EINVAL;
         }
 
-        /* Have to allocate pages and copy the LDH+buffer */
+        /* Copy the LDH+buffer into the statically pre-allocated buffers */
         lpidx = tx->pidx;
         for (i = 0; i < nr_pages; i++) {
             inno_dma_alloc_t *alloc = &tx->pages[RING_IDX_MASKED(lpidx)];
             uint8_t *page;
             uint32_t copy_size;
 
-            alloc->page = alloc_page(__GFP_HIGHMEM);
-            if (alloc->page == NULL) {
-                uint16_t fpidx = tx->pidx;
-                ipd_err("Unable to allocate page buffer for tx\n");
-
-                /* Release what we have */
-                while (fpidx != lpidx) {
-                    alloc = &tx->pages[RING_IDX_MASKED(fpidx)];
-                    dma_unmap_page(&idev->pdev->dev, alloc->dma_addr,
-                                   PAGE_SIZE, DMA_TO_DEVICE);
-                    __free_page(alloc->page);
-                    memset(alloc, 0, sizeof(inno_dma_alloc_t));
-                    RING_IDX_INCR(tx->count, fpidx);
-                }
-                return -1;
-            }
-
-            alloc->dma_addr = dma_map_page(&idev->pdev->dev,
-                                           alloc->page, 0,
-                                           PAGE_SIZE, DMA_TO_DEVICE);
-
-            if (dma_mapping_error(&idev->pdev->dev, alloc->dma_addr)) {
-                ipd_err("%s dma_map_page err i:%d offset:%u len:%u \n",
-                        __func__, i, 0, (unsigned)PAGE_SIZE);
-                return -1;
-            }
-            /* Use the vmaddr as a free flag for  unpin */
-            alloc->vmaddr = page_address(alloc->page);
             page = alloc->vmaddr;
             ipd_debug("TX %x %llx %p %p\n",
                      nr_pages, alloc->dma_addr, alloc->page, page);
@@ -2351,20 +2380,10 @@ inno_tx_send(inno_device_t        *idev,
             }
 
             if(copy_from_user(page, buf, copy_size)) {
-                uint16_t fpidx = tx->pidx;
                 ipd_err("TX: Unable to copy user page buffer\n");
-
-                /* Release what we have */
-                while (fpidx != lpidx) {
-                    alloc = &tx->pages[RING_IDX_MASKED(fpidx)];
-                    dma_unmap_page(&idev->pdev->dev, alloc->dma_addr,
-                                   PAGE_SIZE, DMA_TO_DEVICE);
-                    __free_page(alloc->page);
-                    memset(alloc, 0, sizeof(inno_dma_alloc_t));
-                    RING_IDX_INCR(tx->count, fpidx);
-                }
                 return -1;
             }
+
             buf += copy_size;
             rem_len -= copy_size;
 
@@ -2378,24 +2397,44 @@ inno_tx_send(inno_device_t        *idev,
         rem_len += idev->chip_hdr_len*ioctl->num_ldh;
     }
 
-    /* Fill in the descriptor. The last descriptor is used for FCS and also gets marked as EOP */
+    src_pages = (ioctl->flags & IOCTL_SEND_ZCOPY_FLAG) ? tx->upages : tx->pages;
+
+    /* Fill in the descriptor. The last descriptor is used for FCS and also gets marked as EOP
+     * ONLY if FCS does not fit into the last packet descriptor */
+    is_last_page = 0;
     for (i = 0; i <= nr_pages; i++) {
         inno_tx_desc_t   tx_desc;  /* Local copy in cache */
         uint32_t         len;
-        inno_dma_alloc_t *alloc = &tx->pages[RING_IDX_MASKED(tx->pidx)];
+        inno_dma_alloc_t *alloc = &src_pages[RING_IDX_MASKED(tx->pidx)];
+        dma_addr_t       desc_ba = alloc->dma_addr;
 
         /* Calculate the actual length of this descriptor */
         if (i == nr_pages) {               /* Last page is for FCS + padding if required */
-            /* We expect zero copy buffer to be atleast 64 bytes */
-            if(!(ioctl->flags & IOCTL_SEND_ZCOPY_FLAG) && (((ioctl->buf_len + ETH_FCS_LEN))  < MIN_PACKET_SIZE)) {
-                len = MIN_PACKET_SIZE - ioctl->buf_len; /* The packet should be atleast 64 bytes */
+            /* We expect zero copy buffer to be at least 64 bytes */
+            if(!(ioctl->flags & IOCTL_SEND_ZCOPY_FLAG) && (((ioctl->buf_len + ETH_FCS_LEN)) < MIN_PACKET_SIZE)) {
+                len = MIN_PACKET_SIZE - ioctl->buf_len; /* The packet should be at least 64 bytes */
                 memset((tx->tx_cksum + (MIN_PACKET_SIZE*RING_IDX_MASKED(tx->pidx))), 0, len);
             } else {
                 len = ETH_FCS_LEN;
             }
-            alloc->dma_addr = tx->tx_cksum_ba + (MIN_PACKET_SIZE*RING_IDX_MASKED(tx->pidx));
+            desc_ba = tx->tx_cksum_ba + (MIN_PACKET_SIZE*RING_IDX_MASKED(tx->pidx));
+            if (ioctl->flags & IOCTL_SEND_ZCOPY_FLAG) {
+                alloc->page = NULL;
+            }
         } else if (i == nr_pages - 1) {    /* Second last page */
             len = rem_len;
+            /* We expect zero copy buffer to be at least 64 bytes */
+            if(!(ioctl->flags & IOCTL_SEND_ZCOPY_FLAG) && (((ioctl->buf_len + ETH_FCS_LEN)) < MIN_PACKET_SIZE)) {
+                memset(alloc->vmaddr + rem_len, 0, MIN_PACKET_SIZE - ioctl->buf_len);
+                len = MIN_PACKET_SIZE; /* The packet should be at least 64 bytes */
+                is_last_page = 1;
+            } else {
+                if (len + ETH_FCS_LEN <= PAGE_SIZE) {
+                    /* FCS fits into the last packet descriptor, no need for an extra FCS descriptor */
+                    len += ETH_FCS_LEN;
+                    is_last_page = 1;
+                }
+            }
         } else if (i == 0) {               /* If first page (and not also last) */
             len = PAGE_SIZE - offset;
         } else {                           /* Not first or last */
@@ -2403,8 +2442,8 @@ inno_tx_send(inno_device_t        *idev,
         }
 
         memset(&tx_desc, 0, sizeof(inno_tx_desc_t));
-        tx_desc.hsn_upper = (uint32_t)((alloc->dma_addr + offset) >> 32);
-        tx_desc.hsn_lower = (uint32_t)((alloc->dma_addr + offset) & 0x00000000ffffffff);
+        tx_desc.hsn_upper = (uint32_t)((desc_ba + offset) >> 32);
+        tx_desc.hsn_lower = (uint32_t)((desc_ba + offset) & 0x00000000ffffffff);
         tx_desc.length = len;
 
          ipd_debug("hsn_upper: 0x%x hsn_lower: 0x%x len: 0x%x\n",
@@ -2414,12 +2453,12 @@ inno_tx_send(inno_device_t        *idev,
             tx_desc.sop = 1;    /* Start of  packet */
         }
 
-        if (i == nr_pages) {
+        if (is_last_page || i == nr_pages) {
             tx_desc.eop = 1;    /* End of packet */
         }
 
         ipd_debug("tx_send mk_desc %d page:%016lx d_addr:0x%08x%08x len:%u offset:%d sop:%d eop:%d\n",
-                 nr_pages, (unsigned long)(alloc->dma_addr), tx_desc.hsn_upper, tx_desc.hsn_lower,
+                 i, (unsigned long)(desc_ba), tx_desc.hsn_upper, tx_desc.hsn_lower,
                  tx_desc.length, offset, tx_desc.sop, tx_desc.eop);
 
         /* Copy the cached copy of the descriptor to the actual ring */
@@ -2432,6 +2471,11 @@ inno_tx_send(inno_device_t        *idev,
         rem_len -= len;
         idev->inno_stats.tx_ring_stats[ioctl->ring_num].descs++;
         idev->inno_stats.tx_ring_stats[ioctl->ring_num].bytes+=len;
+
+        if (is_last_page) {
+            rem_len = 0;
+            break;
+        }
     }
 
     ioctl->last_pidx = tx->pidx;
@@ -2452,23 +2496,11 @@ inno_unpin_page(inno_device_t            *idev,
 {
     inno_ring_t           *tx   = &idev->tx_ring[ioctl->ring_num];
 
-    /* EOP is FCS */
-    if(tx->tx_desc[ioctl->idx].eop) {
-        return 0;
-    }
-
-    if (tx->pages[ioctl->idx].page != NULL) {
-        dma_unmap_page(&idev->pdev->dev, tx->pages[ioctl->idx].dma_addr,
+    if (tx->upages && (tx->upages[ioctl->idx].page != NULL)) {
+        dma_unmap_page(&idev->pdev->dev, tx->upages[ioctl->idx].dma_addr,
                        PAGE_SIZE, DMA_TO_DEVICE);
-        if (tx->pages[ioctl->idx].vmaddr != NULL) {
-            /* The vmaddr is used as a "free flag" */
-            __free_page(tx->pages[ioctl->idx].page);
-            tx->pages[ioctl->idx].vmaddr = NULL;
-        } else {
-            put_page(tx->pages[ioctl->idx].page);
-        }
-
-        tx->pages[ioctl->idx].page = NULL;
+        put_page(tx->upages[ioctl->idx].page);
+        memset(&tx->upages[ioctl->idx], 0, sizeof(inno_dma_alloc_t));
     }
 
     return 0;
@@ -2940,6 +2972,8 @@ inno_flush_recover_dma(inno_device_t *idev,
 
     REG32(RXQ_x_DESC_RING(rx_ring_num)) = RECOVERY_RING_NUM_DESC;
     rxq_pidx.flds.num_f = FLUSH_PKT_CNT;
+    /* Publish descriptors before the doorbell. */
+    dma_wmb();
     REG32(RXQ_x_DESC_PIDX(rx_ring_num)) = rxq_pidx.data;
     /* enable RX queue to start receving packets from DTM */
     inno_enable_queue_rx(idev, rx_ring_num);
@@ -3054,7 +3088,9 @@ inno_flush_recover_dma(inno_device_t *idev,
         ipd_debug("Injecting flush packet %d\n", i+1);
     }
 
+    /* Make sure memory is updated before ringing the doorbell to the device. */
     smp_mb();
+    dma_wmb();
     REG32(TXQ_x_DESC_PIDX(tx_ring_num)) = FLUSH_PKT_CNT;
 
     /* Wait for 1 msec */
@@ -4431,12 +4467,14 @@ inno_probe(struct pci_dev             *pdev,
            const struct pci_device_id *ent)
 #endif
 {
-    int           rc, err, offset;
+    int           err, offset;
     int           minor;
     inno_device_t *idev;
     uint32_t      jtag_idcode = 0;
     dev_t         devno;
     pcie_mac__msix_address_match_low_off_t  msix_address_match_low;
+
+    memset(&msix_address_match_low, 0, sizeof(msix_address_match_low));
 
     mutex_lock(&ipd_idr_lock);
     /* Check for Innovium supported devices() */
@@ -4466,11 +4504,13 @@ inno_probe(struct pci_dev             *pdev,
     devno = MKDEV(MAJOR(inno_major_dev), minor);
     ipd_debug("minor: %d devno: %d inno_major_dev: %d\n", minor, devno, inno_major_dev);
 
+    mutex_init(&idev->cleanup_lock);
+
     cdev_init(&idev->cdev, &inno_fops);
     idev->cdev.owner = THIS_MODULE;
-    rc = cdev_add(&idev->cdev, devno, 1);
-    if(rc) {
-        ipd_err("cdev_add failed for instance: %u; rc: %d\n", idev->instance, rc);
+    err = cdev_add(&idev->cdev, devno, 1);
+    if(err) {
+        ipd_err("cdev_add failed for instance: %u; err: %d\n", idev->instance, err);
         goto err_idr_remove;
     }
     ipd_trace("%s: cdev: %p minor: %d\n", __FUNCTION__, &idev->cdev, idev->id);
@@ -4478,7 +4518,7 @@ inno_probe(struct pci_dev             *pdev,
     idev->dev_node = device_create(inno_cl, &pdev->dev, devno, NULL, IPD_DRIVER_NAME "%d", minor);
     if(IS_ERR(idev->dev_node)) {
        ipd_err("Unable to create ipd device for instance: %u\n", idev->instance);
-       rc = PTR_ERR(idev->dev_node);
+       err = PTR_ERR(idev->dev_node);
        goto err_cdev_del;
     }
     ipd_debug("Created %s" "%d\n", IPD_DRIVER_NAME, minor);
@@ -4487,6 +4527,12 @@ inno_probe(struct pci_dev             *pdev,
     spin_lock_init(&idev->lock);
 
     idev->cache_align = dma_get_cache_alignment();
+
+    /* Enable the Device */
+    err = pci_enable_device(pdev);
+    if (err) {
+        goto err_device_destroy;
+    }
 
     /* Enable DMA Master */
     pci_set_master(pdev);
@@ -4522,31 +4568,30 @@ inno_probe(struct pci_dev             *pdev,
     /* Mark BAR_0 as reserved */
     err = pci_request_region(pdev, BAR_0, inno_driver_name);
     if (err) {
-        return err;
+        goto err_disable_dev;
     }
 
     /* Remap BAR0 MMIO region */
     idev->bar0 = pci_ioremap_bar(pdev, BAR_0);
     if (idev->bar0 == NULL) {
         ipd_err("Remap of bar0 failed\n");
-        return -ENOMEM;
+        err = -ENOMEM;
+        goto err_release_regions;
     }
 
     if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
-        /* one time ATU config for BAR2 access */
-        config_bar2_atu(idev);
-
         /* Mark BAR_2 as reserved */
         err = pci_request_region(pdev, BAR_2, inno_driver_name);
         if (err) {
-            return err;
+            goto err_unmap_bar0;
         }
 
         /* Remap BAR2 MMIO region */
         idev->bar2 = pci_ioremap_bar(pdev, BAR_2);
         if (idev->bar2 == NULL) {
             ipd_err("Remap of bar2 failed\n");
-            return -ENOMEM;
+            err = -ENOMEM;
+            goto err_unmap_bar0;
         }
 
         /* Assign the active bar */
@@ -4578,7 +4623,7 @@ inno_probe(struct pci_dev             *pdev,
 #endif
             if (err) {
                 ipd_err("DMA MASK set error\n");
-                return err;
+                goto err_unmap_bar2;
             }
         }
     }
@@ -4603,7 +4648,7 @@ inno_probe(struct pci_dev             *pdev,
 #endif
             if (err) {
                 ipd_err("Consistent DMA MASK set error\n");
-                return err;
+                goto err_unmap_bar2;
             }
         }
     }
@@ -4614,6 +4659,8 @@ inno_probe(struct pci_dev             *pdev,
     if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
         idev->bar2_ba   = (void *)pci_resource_start(pdev, BAR_2);
         idev->bar2_size = pci_resource_len(pdev, BAR_2);
+        /* one time ATU config for BAR2 access; must run after bar2_ba is set */
+        config_bar2_atu(idev);
     }
     idev->pdev      = pdev;
 
@@ -4628,7 +4675,7 @@ inno_probe(struct pci_dev             *pdev,
         ipd_err(
             "inno: PROBE:Error, Unable to allocate kernel memory for sys hdrs\n");
         err = -1;
-        goto dma_buf_fail;
+        goto err_free_dma;
     }
 
     idev->syshdr1_abp = dma_alloc_coherent(&idev->pdev->dev,
@@ -4638,7 +4685,7 @@ inno_probe(struct pci_dev             *pdev,
         ipd_err(
             "inno: PROBE:Error, Unable to allocate kernel memory for sys hdrs\n");
         err = -1;
-        goto dma_buf_fail;
+        goto err_free_dma;
     }
 
     idev->syshdr1_ptp = dma_alloc_coherent(&idev->pdev->dev,
@@ -4648,7 +4695,7 @@ inno_probe(struct pci_dev             *pdev,
         ipd_err(
             "inno: PROBE:Error, Unable to allocate kernel memory for sys hdrs\n");
         err = -1;
-        goto dma_buf_fail;
+        goto err_free_dma;
     }
 
     idev->syshdr2 = dma_alloc_coherent(&idev->pdev->dev,
@@ -4658,7 +4705,7 @@ inno_probe(struct pci_dev             *pdev,
         ipd_err(
             "inno: PROBE:Error, Unable to allocate kernel memory for sys hdrs\n");
         err = -1;
-        goto dma_buf_fail;
+        goto err_free_dma;
     }
 
     /* Allocate a memory for netdev TX checksum */
@@ -4669,7 +4716,7 @@ inno_probe(struct pci_dev             *pdev,
         ipd_err(
             "inno: PROBE:Error, Unable to allocate kernel memory for tx cksum\n");
         err = -1;
-        goto dma_buf_fail;
+        goto err_free_dma;
     }
 
     if (idev->device_id == MRVL_T100_PCI_DEVICE_ID) {
@@ -4699,21 +4746,24 @@ inno_probe(struct pci_dev             *pdev,
     inno_num_devices++;
     mutex_unlock(&ipd_idr_lock);
 
-    /* Enable the Device */
-    err = pci_enable_device(pdev);
+    ipd_print("%s probe found PCI device %x:%x revision - %x\n", inno_driver_name, idev->vendor_id, idev->device_id, idev->rev_id);
+    ipd_print("%s pci bus:device:function is %d:%d:%d\n", inno_driver_name, pdev->bus->number, ((pdev->devfn)>>3)&0x7, (pdev->devfn)&0xf8);
+    ipd_print("%s interrupt mode is %s\n", inno_driver_name, intrmode2str(inno_intr));
+
+    /* Disable PCIe Relaxed Ordering to ensure Ring CIDX update comes after data writes. */
+    err = pcie_capability_clear_word(pdev, PCI_EXP_DEVCTL, PCI_EXP_DEVCTL_RELAX_EN);
     if (err) {
-        return err;
+        ipd_info("Failed to disable PCIe Relaxed Ordering: %d\n", err);
+        /* The above call is not critical, so continue if it fails. */
+        err = 0;
     }
 
-    printk("%s probe found PCI device %x:%x revision - %x\n", inno_driver_name, idev->vendor_id, idev->device_id, idev->rev_id);
-    printk("%s pci bus:device:function is %d:%d:%d\n", inno_driver_name, pdev->bus->number, ((pdev->devfn)>>3)&0x7, (pdev->devfn)&0xf8);
-    printk("%s interrupt mode is %s\n", inno_driver_name, intrmode2str(inno_intr));
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
-    if (device_iommu_mapped(&pdev->dev))
-        printk("%s Iommu enabled\n", inno_driver_name);
-    else
-        printk("%s Iommu not enabled\n", inno_driver_name);
+    if (device_iommu_mapped(&pdev->dev)) {
+        ipd_print("%s Iommu enabled\n", inno_driver_name);
+    } else {
+        ipd_print("%s Iommu not enabled\n", inno_driver_name);
+    }
 #endif
         if (idev->device_id == MRVL_TL10_PCI_DEVICE_ID) {
         /* In the case of TL10, the device ID is encoded in
@@ -4724,18 +4774,57 @@ inno_probe(struct pci_dev             *pdev,
     }
     return err;
 
-dma_buf_fail:
-    ipd_err("dma_buf_failed goto err\n");
-    return err;
+err_free_dma:
+    ipd_err("probe failed, unwinding DMA buffers; err: %d\n", err);
+    if (idev->tx_netdev_cksum) {
+        dma_free_coherent(&pdev->dev, MIN_PACKET_SIZE,
+                          idev->tx_netdev_cksum, idev->tx_netdev_cksum_ba);
+        idev->tx_netdev_cksum = NULL;
+    }
+    if (idev->syshdr2) {
+        dma_free_coherent(&pdev->dev, SYSHDR_SIZE * NUM_SYSPORTS,
+                          idev->syshdr2, idev->syshdr2_ba);
+        idev->syshdr2 = NULL;
+    }
+    if (idev->syshdr1_ptp) {
+        dma_free_coherent(&pdev->dev, SYSHDR_SIZE * NUM_SYSPORTS,
+                          idev->syshdr1_ptp, idev->syshdr1_ptp_ba);
+        idev->syshdr1_ptp = NULL;
+    }
+    if (idev->syshdr1_abp) {
+        dma_free_coherent(&pdev->dev, SYSHDR_SIZE * 2 * NUM_SYSPORTS,
+                          idev->syshdr1_abp, idev->syshdr1_abp_ba);
+        idev->syshdr1_abp = NULL;
+    }
+    if (idev->syshdr1) {
+        dma_free_coherent(&pdev->dev, SYSHDR_SIZE * 2 * NUM_SYSPORTS,
+                          idev->syshdr1, idev->syshdr1_ba);
+        idev->syshdr1 = NULL;
+    }
+    pci_set_drvdata(pdev, NULL);
+err_unmap_bar2:
+    if (idev->bar2) {
+        iounmap(idev->bar2);
+        idev->bar2 = NULL;
+    }
+err_unmap_bar0:
+    if (idev->bar0) {
+        iounmap(idev->bar0);
+        idev->bar0 = NULL;
+    }
+err_release_regions:
+    pci_release_regions(pdev);
+err_disable_dev:
+    pci_disable_device(pdev);
+err_device_destroy:
+    device_destroy(inno_cl, devno);
 err_cdev_del:
-    ipd_err("err_cdev_del goto err\n");
     cdev_del(&idev->cdev);
 err_idr_remove:
-    ipd_err("err_idr_remove goto err\n");
     mutex_lock(&ipd_idr_lock);
     idr_remove(&ipd_idr, minor);
     mutex_unlock(&ipd_idr_lock);
-    return rc;
+    return err;
 }
 
 
@@ -4775,6 +4864,7 @@ inno_remove(struct pci_dev *pdev)
     idr_remove(&ipd_idr, idev->id);
     mutex_unlock(&ipd_idr_lock);
     inno_reset(idev);
+    mutex_destroy(&idev->cleanup_lock);
     inno_num_devices--;
 }
 
@@ -5114,6 +5204,13 @@ inno_cleanup_resources(inno_device_t  *idev )
     if (idev == NULL) {
         return 0;
     }
+
+    /* Multiple paths can request cleanup of the same device concurrently */
+    mutex_lock(&idev->cleanup_lock);
+    if (idev->hw_init_done == 0) {
+        mutex_unlock(&idev->cleanup_lock);
+        return 0;
+    }
     ipd_debug("In %s", __FUNCTION__);
 
     /* Overrides flow control settings and stops traffic to CPU.*/
@@ -5163,8 +5260,9 @@ inno_cleanup_resources(inno_device_t  *idev )
         idev->rupts[vector].vector = 0;
     }
 
-    printk("%s success\n", __FUNCTION__);
+    ipd_print("%s success\n", __FUNCTION__);
     idev->hw_init_done = 0;
+    mutex_unlock(&idev->cleanup_lock);
     return 0;
 }
 
@@ -5205,13 +5303,13 @@ inno_open(struct inode *inode,
         return 0;
     }
     idev->dev_opened = 1;
-    printk("%s opened successfully\n", inno_driver_name);
+    ipd_print("%s opened successfully\n", inno_driver_name);
     return 0;
 }
 
 #define CPU_BLOCK_INIT_DONE_PATTERN 0xAABBCCDD
 
-int
+static int
 inno_is_cpu_block_init_done(inno_device_t *idev)
 {
     uint32_t val;
@@ -5225,7 +5323,7 @@ inno_is_cpu_block_init_done(inno_device_t *idev)
     return -1;
 }
 
-int
+static int
 inno_cpu_block_init_scratchpad_set(inno_device_t *idev)
 {
     uint32_t val;
@@ -5575,7 +5673,7 @@ inno_close(struct inode *inode,
     idev->inno_stats.inno_drv_stats.num_close++;
 
     idev->dev_opened = 0;
-    printk("%s closed successfully\n", inno_driver_name);
+    ipd_print("%s closed successfully\n", inno_driver_name);
 
 close_done:
     fp->private_data = NULL;
@@ -5661,7 +5759,7 @@ inno_mmap(struct file           *fp,
  * Error operations
  *
  */
-int
+static int
 inno_pci_reg_reset(struct pci_dev *pdev)
 {
     inno_device_t *idev = (inno_device_t *)pci_get_drvdata(pdev);
@@ -5825,7 +5923,7 @@ inno_init_module(void)
     }
 
     inno_sysfs_init(inno_instances,MAX_INNO_DEVICES);
-    printk("%s initialized. Version - %s\n", inno_driver_name, ipd_version);
+    ipd_print("%s initialized. Version - %s\n", inno_driver_name, ipd_version);
     return 0;
 
 cdev_fail:
@@ -5854,7 +5952,7 @@ inno_exit_module(void)
     idr_destroy(&ipd_idr);
     kfree(port_table);
     port_table = NULL;
-    printk("%s exited\n", inno_driver_name);
+    ipd_print("%s exited\n", inno_driver_name);
 }
 
 

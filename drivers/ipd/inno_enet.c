@@ -548,6 +548,8 @@ inno_enet_tx(struct sk_buff    *skb,
     RING_IDX_INCR(tx_ring->count, pidx);
     tx_ring->pidx = pidx;
 
+    /* Ensure all descriptor writes are completed before updating the PIDX register. */
+    dma_wmb();
     /* Write the new PIDX to kickstart the DMA engine */
     REG32(TXQ_x_DESC_PIDX(tx_ring->num)) = tx_ring->pidx;
 
@@ -637,7 +639,7 @@ inno_enet_get_stats(struct net_device *dev)
 static struct rtnl_link_stats64 *
 inno_enet_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
 #else
-void
+static void
 inno_enet_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
 #endif
 {
@@ -764,7 +766,7 @@ static const struct net_device_ops inno_enet_netdev_ops =
  */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
-void send_sflow_packet(inno_device_t *idev, struct sk_buff *skb,
+static void send_sflow_packet(inno_device_t *idev, struct sk_buff *skb,
                        inno_gen_netlink_t *genl,
                        uint16_t in_sp, uint16_t out_sp,
                        uint32_t sample_rate, struct net *inet,
@@ -1175,6 +1177,8 @@ inno_rx_ring_poll(struct napi_struct *napi,
        return 0;
    }
 
+    /* Ensure posted_cidx is read before entering the loop. */
+    dma_rmb();
     while ((budget) && (rx->cidx != posted_cidx)) {
         inno_rx_wb_t      wb;
         uint32_t          end_cidx;
@@ -1212,9 +1216,12 @@ inno_rx_ring_poll(struct napi_struct *napi,
             ipd_err("RX WB w/o expected SOP - index %x wb-%llx\n",
                     rx->cidx, (unsigned long long)wb_bits);
 
+            last_cidx    = rx->cidx;
+            need_release = 1;
             RING_IDX_INCR(rx->count, rx->cidx);
             idev->inno_stats.rx_ring_stats[rx->num].descs++;
-        } while (rx->cidx != posted_cidx);
+            goto next_sop;
+        } while (0);
 
         if (!wb.sop) {           /* If we did not find an SOP */
             break;
@@ -1274,6 +1281,9 @@ inno_rx_ring_poll(struct napi_struct *napi,
 
         /* We have a complete packet now */
         dma = &rx->pages[RING_IDX_MASKED(rx->cidx)];
+        /* Unmap regains CPU ownership from device, and invalidates stale cache on non-coherent memory */
+        dma_unmap_page(&pdev->dev, dma->dma_addr, PAGE_SIZE, DMA_FROM_DEVICE);
+        dma->dma_addr = 0;
         if(inno_unpack_ldh_header(dma->vmaddr, &ldh) < 0){
             ipd_err("Invalid LDH\n");
             idev->inno_stats.rx_ring_stats[rx->num].drops++;
@@ -1544,8 +1554,6 @@ inno_rx_ring_poll(struct napi_struct *napi,
         /* First block */
         if (block_len >= (wb.length-ETH_FCS_LEN)) {
             /* Nothing left - release the page */
-            dma_unmap_page(&pdev->dev, dma->dma_addr, PAGE_SIZE,
-                           DMA_FROM_DEVICE);
             __free_page(dma->page);
         } else {
             int fcs_len = 0;
@@ -1554,8 +1562,6 @@ inno_rx_ring_poll(struct napi_struct *napi,
             skb_add_rx_frag(skb, skb_shinfo(skb)->nr_frags, dma->page,
                             block_len,
                             wb.length - block_len - fcs_len, PAGE_SIZE);
-            dma_unmap_page(&pdev->dev, dma->dma_addr, PAGE_SIZE,
-                           DMA_FROM_DEVICE);
         }
 
         memset(dma, 0, sizeof(inno_dma_alloc_t));
@@ -1642,18 +1648,31 @@ inno_rx_ring_poll(struct napi_struct *napi,
         budget--;
         if (1 == need_release)
         {
-            if (rx->pages[RING_IDX_MASKED(last_cidx)].page != NULL)
-            {
-                /* Temporarily commented out log, needs investigation on why control reaches here */
-                /* ipd_info("last_cidx %d page: %p\n", last_cidx, rx->pages[RING_IDX_MASKED(last_cidx)].page); */
-                dma_unmap_page(&pdev->dev, rx->pages[RING_IDX_MASKED(last_cidx)].dma_addr, PAGE_SIZE,
-                               DMA_FROM_DEVICE);
-                __free_page(rx->pages[RING_IDX_MASKED(last_cidx)].page);
+            /* Release every buffer of the discarded packet, from the SOP
+             * (last_cidx) up to the new consumer index. Freeing only the SOP
+             * slot would leak the remaining descriptors of a multi-descriptor
+             * packet once the refill path overwrites them. Clearing each slot
+             * also prevents inno_free_ring() from double-freeing at close. */
+            uint32_t rel_idx = last_cidx;
+            while (rel_idx != rx->cidx) {
+                inno_dma_alloc_t *rel = &rx->pages[RING_IDX_MASKED(rel_idx)];
+                if (rel->page != NULL) {
+                    /* dma_addr == 0 means the page was already unmapped */
+                    if (rel->dma_addr) {
+                        dma_unmap_page(&pdev->dev, rel->dma_addr, PAGE_SIZE,
+                                       DMA_FROM_DEVICE);
+                    }
+                    __free_page(rel->page);
+                    memset(rel, 0, sizeof(inno_dma_alloc_t));
+                }
+                RING_IDX_INCR(rx->count, rel_idx);
             }
             need_release = 0;
         }
         /* Update the posted_cidx */
         posted_cidx = REG32(RXQ_x_DESC_CIDX(rx->num));
+        /* Ensure posted_cidx is read before looping again. */
+        dma_rmb();
     } /* while current cidx != posted cidx */
 
     rxq_cidx.flds.num_f = rx->cidx;
@@ -1692,6 +1711,8 @@ inno_tx_ring_poll(inno_ring_t *tx)
     }
     cur_cidx = tx->work_cidx;
 
+    /* Ensure cur_cidx is read before entering the loop. */
+    dma_rmb();
     /* For each completed descriptor */
     while (cur_cidx != tx->cidx) {
         inno_ring_desc_info_t *info;
@@ -1868,6 +1889,8 @@ inno_ring_poll(struct napi_struct *napi,
                     (uint32_t)(dma->dma_addr & 0x00000000ffffffff);
                 RING_IDX_INCR(rx->count, rx->pidx);
                 rxq_pidx.flds.num_f = rx->pidx;
+                /* Make sure coherent memory(ring) is updated before ringing the doorbell to the device. */
+                dma_wmb();
                 REG32(RXQ_x_DESC_PIDX(ring_num)) = rxq_pidx.data;
             }
         }
@@ -2325,7 +2348,7 @@ inno_netdev_get(inno_device_t  *idev,
  *  @param [in] name  - netlink name
  *  @return ERRNO
  */
-int
+static int
 inno_gen_netlink_create(inno_device_t  *idev, char *name, netLinkAppType nl_type, char *gen_mcgrp_name)
 {
     int rc=-1, name_len;
@@ -2387,7 +2410,7 @@ inno_gen_netlink_create(inno_device_t  *idev, char *name, netLinkAppType nl_type
  *  @param [in] name  - netlink name
  *  @return ERRNO
  */
-int
+static int
 inno_gen_netlink_delete(inno_device_t  *idev, char *name)
 {
     int rc=-1;
@@ -2569,7 +2592,7 @@ inno_netlink_deinit(inno_device_t  *idev)
  *  @param [in] uint32_t            - trapid
  *  @return ERRNO
  */
-int
+static int
 inno_add_trapid_genl(inno_device_t  *idev,
                      inno_gen_netlink_t *inno_genl,
                      uint32_t trapid)
@@ -2597,7 +2620,7 @@ inno_add_trapid_genl(inno_device_t  *idev,
  *  @param [in] uint32_t            - trapid
  *  @return ERRNO
  */
-int
+static int
 inno_rem_trapid_genl(inno_device_t  *idev,
                      inno_gen_netlink_t *inno_genl,
                      uint32_t trapid)
