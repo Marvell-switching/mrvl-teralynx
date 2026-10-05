@@ -30,8 +30,21 @@ disclaimer.
 
 #include <linux/types.h>
 #include <linux/kernel.h>
+#include <linux/version.h>
 #include <net/genetlink.h>
 #include "inno_common_def.h"
+
+/* dma_wmb()/dma_rmb() were introduced in Linux 3.19. Kernels older than that
+ * (e.g. 3.10) are used for build purposes only and are not supported for device
+ * testing, so define these as no-ops to satisfy the compiler. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+#ifndef dma_wmb
+#define dma_wmb()
+#endif
+#ifndef dma_rmb
+#define dma_rmb()
+#endif
+#endif
 
 /* Base MTU without CPU headers */
 #define DEFAULT_INNO_MAX_MTU_SIZE 9456

@@ -37,6 +37,7 @@ disclaimer.
 #define IPD_LOGLEVEL_DEBUG    6   /* debug information */
 #define IPD_LOGLEVEL_VERBOSE  7   /* verbose logging */
 
+#define ipd_print(fmt, ...)     printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__)
 #define ipd_crit(fmt, ...)      printk(KERN_CRIT "IPD-CRIT:%s:%d: " pr_fmt(fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define ipd_err(fmt, ...)     if (ipd_loglevel>=IPD_LOGLEVEL_ERR) \
                                 printk(KERN_ERR "IPD-ERR:%s:%d: " pr_fmt(fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
@@ -56,6 +57,10 @@ disclaimer.
                                 printk(KERN_INFO "IPD-VERBOSE:%s:%d: " pr_fmt(fmt), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
 extern uint32_t ipd_loglevel;
+
+struct inno_device;
+void inno_sysfs_init(struct inno_device *idev, int max_device);
+void inno_sysfs_deinit(void);
 
 /** @brief Ring stats
  *
@@ -97,7 +102,7 @@ typedef struct inno_stats{
     inno_wb_stats_t     wb_stats;
 }inno_stats_t;
 
-inline static char *vec2str(int vector)
+static inline char *vec2str(int vector)
 {
     switch(vector) {
         case MSIX_VECTOR_NAPI:
