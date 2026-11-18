@@ -33,6 +33,7 @@ disclaimer.
 #include <linux/etherdevice.h>
 #include <net/genetlink.h>
 #include <linux/cdev.h>
+#include <linux/mutex.h>
 
 /** @file ipd.h
  *
@@ -150,6 +151,7 @@ typedef struct inno_ring {
     inno_ring_desc_info_t *desc_info;   /** Descriptor info array (Netdev) */
 
     inno_dma_alloc_t      *pages;       /** Array of ring pages */
+    inno_dma_alloc_t      *upages;      /** Array of pinned user pages (TX zero-copy) */
 
 } inno_ring_t;
 
@@ -315,6 +317,7 @@ typedef struct inno_device {
     spinlock_t              rupt_lock;             /** Spinlock for rupt info */
     spinlock_t              lock;                  /** Generic spinlock */
     spinlock_t              napi_lock;             /** lock for NAPI poll spinlock */
+    struct mutex            cleanup_lock;          /** Serializes resource cleanup paths */
 
     struct napi_struct      napi;                  /** Struct for NAPI rupts */
 

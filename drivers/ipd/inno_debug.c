@@ -45,7 +45,7 @@ uint32_t ipd_loglevel = IPD_LOGLEVEL_WARN;
 module_param_named(loglevel, ipd_loglevel, uint, 0644);
 MODULE_PARM_DESC(loglevel, "Log level(0-7)");
 
-ssize_t
+static ssize_t
 ipd_info_r( struct device * dev,
               struct device_attribute * attr,
               char * buf ){
@@ -76,7 +76,7 @@ ipd_info_r( struct device * dev,
 }
 
 
-ssize_t
+static ssize_t
 ring_stat_r( struct device * dev,
               struct device_attribute * attr,
               char * buf ) {
@@ -135,7 +135,7 @@ ring_stat_r( struct device * dev,
     return len;
 }
 
-ssize_t
+static ssize_t
 ring_stat_w( struct device * dev,
                struct device_attribute * attr,
                const char * buf,
@@ -167,7 +167,7 @@ ring_stat_w( struct device * dev,
 
 }
 
-ssize_t
+static ssize_t
 interrupt_stat_r( struct device * dev,
               struct device_attribute * attr,
               char * buf ){
@@ -195,7 +195,7 @@ interrupt_stat_r( struct device * dev,
     return len;
 }
 
-ssize_t
+static ssize_t
 interrupt_stat_w( struct device * dev,
                struct device_attribute * attr,
                const char * buf,
@@ -224,7 +224,7 @@ interrupt_stat_w( struct device * dev,
     return count;
 }
 
-ssize_t
+static ssize_t
 loglevel_r( struct device * dev,
               struct device_attribute * attr,
               char * buf ){
@@ -250,7 +250,7 @@ loglevel_r( struct device * dev,
     return len;
 }
 
-ssize_t
+static ssize_t
 loglevel_w( struct device * dev,
                struct device_attribute * attr,
                const char * buf,
@@ -280,7 +280,7 @@ loglevel_w( struct device * dev,
     return count;
 }
 
-ssize_t
+static ssize_t
 tx_stat_r( struct device * dev,
             struct device_attribute * attr,
             char * buf ){
@@ -304,7 +304,7 @@ tx_stat_r( struct device * dev,
     return len;
 }
 
-ssize_t
+static ssize_t
 tx_stat_w( struct device * dev,
             struct device_attribute * attr,
             const char * buf,
@@ -333,7 +333,7 @@ tx_stat_w( struct device * dev,
     return count;
 }
 
-ssize_t
+static ssize_t
 wb_stat_r( struct device * dev,
             struct device_attribute * attr,
             char * buf ){
@@ -363,7 +363,7 @@ wb_stat_r( struct device * dev,
     return len;
 }
 
-ssize_t
+static ssize_t
 wb_stat_w( struct device * dev,
             struct device_attribute * attr,
             const char * buf,
@@ -392,7 +392,7 @@ wb_stat_w( struct device * dev,
     return count;
 }
 
-ssize_t
+static ssize_t
 genl_stats_r( struct device * dev,
         struct device_attribute * attr,
         char * buf ){
@@ -426,7 +426,7 @@ genl_stats_r( struct device * dev,
     return len;
 }
 
-ssize_t
+static ssize_t
 genl_stats_w( struct device * dev,
               struct device_attribute * attr,
               const char * buf,
